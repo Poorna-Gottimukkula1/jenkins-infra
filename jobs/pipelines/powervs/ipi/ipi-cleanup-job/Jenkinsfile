@@ -1,0 +1,108 @@
+@Library('jenkins-upstream-library') _
+
+pipeline {
+    agent {
+        docker {
+            image 'quay.io/powercloud/inbound-agent:4.13.3-1.1'
+            args '-v /etc/resolv.conf:/etc/resolv.conf'
+            label 'jump-vpc-x86_64'
+        }
+    }
+    parameters {
+        string(defaultValue: '', description: 'Enter IPI cluster prefix (Ex: wfk5d )', name: 'ClusterPrefix')
+        string(defaultValue: '', description: 'Enter CIS Instance CRN ', name: 'CisCrn')
+        choice(description: 'Select workspace/clustername to clean up the resources', choices: ['rdr-cicd-fra1-415', 'rdr-cicd-fra2-415', 'rdr-cicd-mad02-415', 'rdr-cicd-mad04-415', 'rdr-cicd-sao04-415', 'rdr-cicd-wdc06-415', 'rdr-cicd-wdc07-415'], name: 'ClusterName')
+    } 
+    environment {
+        IBMID="ltccci@in.ibm.com"
+        IBMCLOUD_API_KEY=credentials('IBMCLOUD_UPSTREAM_CI_API_KEY_1')
+        //VPCREGION= "eu-de"
+        RESOURCE_GROUP="ibm-internal-cicd-resource-group"
+        BASEDOMAIN="ppc64le-cloud.cis.ibm.net"
+        CIS_CRN="${params.CisCrn}"
+        CLUSTER_NAME="${params.ClusterName}"
+        CLUSTER_PREFIX="${params.ClusterPrefix}"
+        CLUSTER_DIR="./ipi-install"
+        OPENSHIFT_CLIENT_TARBALL_AMD64="https://mirror.openshift.com/pub/openshift-v4/amd64/clients/ocp/4.15.5/openshift-client-linux.tar.gz"
+        OPENSHIFT_INSTALLER_URL="https://mirror.openshift.com/pub/openshift-v4/amd64/clients/ocp/4.15.5/openshift-install-linux.tar.gz"
+	 }
+    stages {
+        stage('initilize powervs workspace environments') {
+            steps {
+                script{
+                    if (env.CLUSTER_NAME == "rdr-cicd-fra1-415"){
+                        env.POWERVS_REGION = "eu-de"
+                        env.POWERVS_ZONE = "eu-de-1"
+                        env.SERVICE_INSTANCE_GUID = "e6e8ab39-06f3-45c3-b90f-f35088aece99"
+                    }
+                    if (env.CLUSTER_NAME == "rdr-cicd-fra2-415"){
+                        env.POWERVS_REGION = "eu-de"
+                        env.POWERVS_ZONE = "eu-de-2"
+                        env.SERVICE_INSTANCE_GUID = "7a6bb29b-7ce2-46b0-923e-81f59aeb8b31"
+                    }
+                    if (env.CLUSTER_NAME == "rdr-cicd-mad02-415"){
+                        env.POWERVS_REGION = "mad"
+                        env.POWERVS_ZONE = "mad02"
+                        env.SERVICE_INSTANCE_GUID = "3e283902-54e5-42d4-bc74-82d635a38b78"
+                    }
+                    if (env.CLUSTER_NAME == "rdr-cicd-mad04-415"){
+                        env.POWERVS_REGION = "mad"
+                        env.POWERVS_ZONE = "mad04"
+                        env.SERVICE_INSTANCE_GUID = "2e322992-9e36-43db-a017-bcc364bfb4b2"
+                    }
+                    if (env.CLUSTER_NAME == "rdr-cicd-sao04-415"){
+                        env.POWERVS_REGION = "sao"
+                        env.POWERVS_ZONE = "sao04"
+                        env.SERVICE_INSTANCE_GUID = "44c283c8-101c-4117-bfd1-3c1e80520aa8"
+                    }
+                    if (env.CLUSTER_NAME == "rdr-cicd-wdc06-415"){
+                        env.POWERVS_REGION = "wdc"
+                        env.POWERVS_ZONE = "wdc06"
+                        env.SERVICE_INSTANCE_GUID = "ee746023-4bbe-4bae-b747-e79b3fd229ca"
+                    }
+                    if (env.CLUSTER_NAME == "rdr-cicd-wdc07-415"){
+                        env.POWERVS_REGION = "wdc"
+                        env.POWERVS_ZONE = "wdc07"
+                        env.SERVICE_INSTANCE_GUID = "df5da60b-0a36-460a-b0b7-b2156e492f98"
+                    }
+                    currentBuild.description = "Cleanup for: ${env.CLUSTER_NAME}-${CLUSTER_PREFIX}"
+                }
+            }
+        }
+        //Checkout the installer git repo
+        stage('Cleanup cluster') {
+            steps {
+                script {
+                    ansiColor('xterm') {
+                        echo ""
+                    }
+                    try
+                    {
+                        sh '''
+                            mkdir ${WORKSPACE}/destroy-ipi-cluster && cd ${WORKSPACE}/destroy-ipi-cluster
+                            curl -sL https://raw.githubusercontent.com/ppc64le-cloud/pvsadm/master/get.sh | VERSION="v0.1.8" FORCE=1 bash
+                            wget --quiet "${OPENSHIFT_CLIENT_TARBALL_AMD64}" -O - | tar -xz
+                            cp kubectl oc /usr/bin/
+                            curl -L "${OPENSHIFT_INSTALLER_URL}" > openshift-install-linux.tar.gz
+                            tar -xvf openshift-install-linux.tar.gz  -C /usr/local/bin
+                            oc version
+                            openshift-install version
+                            chmod +x ${WORKSPACE}/scripts/cleanup-ipi-resources.sh && ${WORKSPACE}/scripts/cleanup-ipi-resources.sh
+                        '''
+                    }
+                    catch (err)
+                    {
+                        echo 'Error ! IPI cluster setup failed !'
+                        env.FAILED_STAGE=env.STAGE_NAME
+                        throw err
+                    }
+                }
+            }
+        }
+    }
+    post {
+        always {
+            cleanWs()
+        }
+    }
+}
