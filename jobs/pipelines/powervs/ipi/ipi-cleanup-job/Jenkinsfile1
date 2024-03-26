@@ -1,0 +1,79 @@
+@Library('jenkins-upstream-library') _
+
+pipeline {
+    agent {
+        kubernetes {
+            inheritFrom 'jenkins-agent'
+        }
+    }
+    environment {
+        IBMID="ltccci@in.ibm.com"
+        IBMCLOUD_API_KEY=credentials('IBMCLOUD_UPSTREAM_CI_API_KEY_1')
+        //VPCREGION= "eu-de"
+        RESOURCE_GROUP="ibm-internal-cicd-resource-group"
+        BASEDOMAIN="ppc64le-cloud.cis.ibm.net"
+        CLUSTER_DIR="./ipi-install"
+        OPENSHIFT_CLIENT_TARBALL_AMD64="https://mirror.openshift.com/pub/openshift-v4/amd64/clients/ocp/latest-4.16/openshift-client-linux.tar.gz"
+        OPENSHIFT_INSTALLER_URL="https://mirror.openshift.com/pub/openshift-v4/amd64/clients/ocp/latest-4.16/openshift-install-linux.tar.gz"
+	 }
+    stages {
+        stage('Initilize powervs workspace and cleanup stale ipi clusters') {
+            steps {
+                script { 
+                    ansiColor('xterm') {
+                        echo ""
+                    }                                
+                    try
+                    {
+                        def clusterMap = [
+                            "frankfurt1":  ["region": "eu-de", "zone": "eu-de-1", "service_instance_guid": "e6e8ab39-06f3-45c3-b90f-f35088aece99"],
+                            "frankfurt2":  ["region": "eu-de", "zone": "eu-de-2", "service_instance_guid": "7a6bb29b-7ce2-46b0-923e-81f59aeb8b31"],
+                            "madrid02": ["region": "mad", "zone": "mad02", "service_instance_guid": "3e283902-54e5-42d4-bc74-82d635a38b78"],
+                            "madrid04": ["region": "mad", "zone": "mad04", "service_instance_guid": "2e322992-9e36-43db-a017-bcc364bfb4b2"],
+                            "washingtondc06": ["region": "wdc", "zone": "wdc06", "service_instance_guid": "ee746023-4bbe-4bae-b747-e79b3fd229ca"],
+                            "saopaulo01": ["region": "sao", "zone": "sao01", "service_instance_guid": "e6a6306b-8348-48dd-99ad-56a7bafc9265"],
+                            "saopaulo04": ["region": "sao", "zone": "sao04", "service_instance_guid": "44c283c8-101c-4117-bfd1-3c1e80520aa8"],
+                            "washingtondc07": ["region": "wdc", "zone": "wdc07", "service_instance_guid": "df5da60b-0a36-460a-b0b7-b2156e492f98"],
+                            "london06": ["region": "lon", "zone": "lon06", "service_instance_guid": "621aec6b-dc3c-4810-a31f-b8dde937ca03"],
+                            "osaka21": ["region": "osa", "zone": "osa21", "service_instance_guid": "c495676b-2162-4a3f-a7a2-e7fb466c6899"],
+                            "sydney04": ["region": "syd", "zone": "syd04", "service_instance_guid": "2016869c-f03e-425a-9145-3f245b17a2f1"]
+                        ]
+                        sh '''
+                            curl -sL https://raw.githubusercontent.com/ppc64le-cloud/pvsadm/master/get.sh | VERSION="v0.1.8" FORCE=1 bash
+                            wget --quiet "${OPENSHIFT_CLIENT_TARBALL_AMD64}" -O - | tar -xz
+                            cp kubectl oc /usr/bin/
+                            curl -L "${OPENSHIFT_INSTALLER_URL}" > openshift-install-linux.tar.gz
+                            tar -xvf openshift-install-linux.tar.gz  -C /usr/local/bin
+                        '''
+                        clusterMap.each { key, value ->
+                            env.POWERVS_REGION = value.region
+                            env.POWERVS_ZONE = value.zone
+                            env.SERVICE_INSTANCE_GUID = value.service_instance_guid
+                            echo "powervs/ipi/4.16/daily-ipi4.16-powervs-${key}"
+                            def job_name = "powervs/ipi/4.16/daily-ipi4.16-powervs-${key}"
+                            step([  $class: 'CopyArtifact', filter: "deploy/metadata.json", fingerprintArtifacts: true, projectName: "${job_name}", target: ".", optional: true, selector: lastCompleted() ])
+                            sh '''   
+                                oc version
+                                openshift-install version
+                                chmod +x ${WORKSPACE}/scripts/cleanup-ipi-resources1.sh && ${WORKSPACE}/scripts/cleanup-ipi-resources1.sh
+                            '''
+                        }
+
+                    }
+                    catch (err)
+                    {
+                        echo 'Error ! IPI cluster cleanup failed !'
+                        env.FAILED_STAGE=env.STAGE_NAME
+                        throw err
+                    }
+                }
+            
+            }
+        }
+    }
+    post {
+        always {
+            cleanWs()
+        }
+    }
+}
