@@ -1,0 +1,153 @@
+@Library('poorna-library') _
+
+pipeline {
+    agent {
+        docker {
+            image 'quay.io/powercloud/inbound-agent:4.10-3.3'
+            args '-v /etc/resolv.conf:/etc/resolv.conf'
+            label 'jump-vpc-x86_64'
+        }
+    }
+    environment {
+        //users and credentials. All must be defined in Jenkins Credentials
+        GITHUB_USER = credentials('GITHUB_USER')
+        GITHUB_TOKEN = credentials('GITHUB_TOKEN')
+        OS_USERNAME = credentials('OS_USERNAME')
+        OS_PASSWORD = credentials('OS_PASSWORD')
+        DOCKER_USER = credentials('DOCKER_USER')
+        ARTIFACTORY_USER = credentials('ARTIFACTORY_USER')
+        ARTIFACTORY_TOKEN = credentials('ARTIFACTORY_TOKEN')
+        REDHAT_USERNAME = credentials('REDHAT_USERNAME')
+        REDHAT_PASSWORD = credentials('REDHAT_PASSWORD')
+        PULL_SECRET = credentials('PULL_SECRET')
+        OS_AUTH_URL=credentials('URL_SCNLCICDPOWERVC')
+
+        //Env constants
+        HARDWARE_CHOSE = "P9"
+        TERRAFORM_VER = "1.7.2"
+        AVAILABILITY_ZONE = "p9_ocp"
+        OCP_RELEASE="4.16"
+        TARGET = "deploy-openshift4-powervc"
+        TEMPLATE_FILE = ".${TARGET}.tfvars.template"
+        POWERVS = false
+        SCRIPT_DEPLOYMENT = false
+        WAIT_FOR_DEBUG = "1"
+        REDHAT_RELEASE = "9.3"
+
+        //Branch
+        OPENSHIFT_POWERVC_GIT_TF_DEPLOY_BRANCH="main"//The download branch
+
+        //E2e and Scale specific variables
+        ENABLE_E2E_TEST="true"
+        ENABLE_SCALE_TEST="false"
+        GOLANG_TARBALL="https://dl.google.com/go/go1.22.1.linux-ppc64le.tar.gz"
+
+        // Type of configuration
+        CONFIG_TYPE="min"
+
+        // kdump Configuration
+        KDUMP_ENABLE="false"
+	 }
+
+    stages {
+        stage('Clone ansible extra') {
+            steps {
+                cloneRepo("https://github.com/Poorna-Gottimukkula1/ocp4-playbooks-extras", "ocp4-playbooks-extras", "*/e2e-count")
+            }
+        }
+        stage('Setup Common Environment Variables') {
+            steps {
+                setupCommonEnvironmentVariables()
+                setupClusterConfig("${CONFIG_TYPE}")
+                script {
+                //ssp specific variables
+                env.SCG_ID = "77873f56-8edc-49d4-8392-e19ea6af8cb1"
+                env.VOLUME_STORAGE_TEMPLATE = "viosssp base template"
+                env.OPENSHIFT_INSTALL_TARBALL="https://mirror.openshift.com/pub/openshift-v4/ppc64le/clients/ocp-dev-preview/4.16.0-ec.4/openshift-install-linux.tar.gz"
+                env.OPENSHIFT_CLIENT_TARBALL="https://mirror.openshift.com/pub/openshift-v4/ppc64le/clients/ocp-dev-preview/4.16.0-ec.4/openshift-client-linux.tar.gz"
+                env.OPENSHIFT_CLIENT_TARBALL_AMD64="https://mirror.openshift.com/pub/openshift-v4/amd64/clients/ocp-dev-preview/4.16.0-ec.4/openshift-client-linux.tar.gz"
+                }
+            }
+        }
+        //Checkout the installer git repo
+        stage('Prepare Terraform Template') {
+            steps {
+                script {
+                    ansiColor('xterm') {
+                        echo ""
+                    }
+                    try
+                    {
+                        gbToMb()
+                        pullSecret()
+                        //env.OPENSHIFT_IMAGE = ""
+                        env.OPENSHIFT_IMAGE = "quay.io/openshift-release-dev/ocp-release:4.16.0-ec.4-multi-ppc64le"
+                        env.OCP_RELEASE_TAG = "4.16.0-ec.4-multi-ppc64le"
+                        env.RHCOS_IMAGE_NAME = "ssp-rhcos416-94"
+                        env.RHCOS_IMAGE_ID = "d7c41115-d30b-4d04-bcae-17b88b51113e"
+                        env.BASTION_IMAGE_NAME = "ssp-rhel93"
+                        env.BASTION_IMAGE_ID = "3bd11693-1272-4cbd-b506-328cc01d11e8"
+
+                        createTemplate(env.OS_AUTH_URL, env.MASTER_VCPUS , "${MASTER_MEMORY_MB}", env.MASTER_PROCESSORS, env.MASTER_TEMPLATE)
+                        createTemplate(env.OS_AUTH_URL, env.WORKER_VCPUS , "${WORKER_MEMORY_MB}", env.WORKER_PROCESSORS, env.WORKER_TEMPLATE)
+                        createTemplate(env.OS_AUTH_URL, env.BASTION_VCPUS , "${BASTION_MEMORY_MB}", env.BASTION_PROCESSORS, env.BASTION_TEMPLATE)
+                        createTemplate(env.OS_AUTH_URL, env.BOOTSTRAP_VCPUS , "${BOOTSTRAP_MEMORY_MB}", env.BOOTSTRAP_PROCESSORS, env.BOOTSTRAP_TEMPLATE)
+                    }
+                    catch (err)
+                    {
+                        echo 'Error ! Template preparation failed !'
+                        env.FAILED_STAGE=env.STAGE_NAME
+                        throw err
+                    }
+                }
+            }
+        }
+        stage('Initialize Environment') {
+            steps {
+                initializeEnvironment()
+            }
+        }
+        stage('Setup Terraform Plugin') {
+            steps {
+                setupTerraformPlugin()
+            }
+        }
+        stage('Deploy OCP Cluster') {
+            steps {
+                deployCluster()
+            }
+        }
+        stage('Run crontab script for capturing outputs of multiple commands') {
+            steps {
+                crontabCommandCaptureScript()
+            }
+        }
+        stage('Setup Kubectl') {
+            steps {
+                setupKubeconfigOcp4()
+            }
+        }
+        stage('Setup and run ansible extra') {
+            steps {
+               setupAndRunE2e()
+            }
+        }
+        stage('Gather pprof and prometheus data') {
+            steps {
+                //gatherPrometheusData()
+                echo "gatherPrometheusData() is skipped for now"
+            }
+        }
+    }
+    post {
+        always {
+            archiveAllArtifacts("deploy/conformance-parallel-out.txt.tar.gz", "deploy/summary.txt", "deploy/vars.tfvars",
+                "cpu-pre.pprof", "heap-pre.pprof", "prometheus.tar.gz", "deploy/cron.log", "must-gather.tar.gz")
+            cleanupOcp4Cluster()
+            checkInfraError()
+            processE2eResults()
+            //notifyBySlack(currentBuild.result, env.MESSAGE)
+            cleanWs()
+        }
+    }
+}
