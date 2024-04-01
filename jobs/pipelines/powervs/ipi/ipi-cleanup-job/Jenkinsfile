@@ -23,8 +23,8 @@ pipeline {
         CLUSTER_NAME="${params.ClusterName}"
         CLUSTER_PREFIX="${params.ClusterPrefix}"
         CLUSTER_DIR="./ipi-install"
-        OPENSHIFT_CLIENT_TARBALL_AMD64="https://mirror.openshift.com/pub/openshift-v4/amd64/clients/ocp/4.15.5/openshift-client-linux.tar.gz"
-        OPENSHIFT_INSTALLER_URL="https://mirror.openshift.com/pub/openshift-v4/amd64/clients/ocp/4.15.5/openshift-install-linux.tar.gz"
+        OPENSHIFT_CLIENT_TARBALL_AMD64="https://mirror.openshift.com/pub/openshift-v4/amd64/clients/ocp/latest-4.15/openshift-client-linux.tar.gz"
+        OPENSHIFT_INSTALLER_URL="https://mirror.openshift.com/pub/openshift-v4/amd64/clients/ocp/latest-4.15/openshift-install-linux.tar.gz"
 	 }
     stages {
         stage('initilize powervs workspace environments') {
