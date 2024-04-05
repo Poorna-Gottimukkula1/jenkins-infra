@@ -2,9 +2,9 @@
 
 pipeline {
     agent {
-        kubernetes {
-            inheritFrom 'jenkins-agent'
-        }
+        node {
+            label 'ipi-agent'
+        } 
     }
     environment {
         //users and credentials. All must be defined in Jenkins Credentials
@@ -77,16 +77,17 @@ pipeline {
                         }
                             sh '''
                                 cd ${WORKSPACE}/deploy
+                                rm -rf ~/.kube
                                 echo ${PULL_SECRET} > ~/.pullSecret
                                 cp -rf ${WORKSPACE}/deploy/id_rsa.pub ~/.ssh/id_installer_rsa.pub
-                                git clone https://github.com/Poorna-Gottimukkula1/powervs-hack.git
+                                git clone https://github.com/Poorna-Gottimukkula1/powervs-hack.git -b ipi
                                 oc adm release extract --tools ${OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE} --to openshift-tools -a ~/.pullSecret
-                                tar -xvf ./openshift-tools/openshift-install-linux-amd64-${OPENSHIFT_INSTALL_RELEASE_VERSION}.tar.gz  -C /usr/local/bin
-                                tar -xvf ./openshift-tools/openshift-client-linux-amd64-${OPENSHIFT_INSTALL_RELEASE_VERSION}.tar.gz  -C /usr/bin
+                                tar -xvf ./openshift-tools/openshift-install-linux-${OPENSHIFT_INSTALL_RELEASE_VERSION}.tar.gz  -C /usr/local/bin
+                                tar -xvf ./openshift-tools/openshift-client-linux-${OPENSHIFT_INSTALL_RELEASE_VERSION}.tar.gz  -C /usr/local/sbin
                                 rm -rf ./openshift-tools
                                 #curl -L "${OPENSHIFT_INSTALLER_URL}" > openshift-install-linux.tar.gz
                                 #tar -xvf openshift-install-linux.tar.gz  -C /usr/local/bin
-                                 # setup oc client
+                                # setup oc client
                                 #if [ ${OPENSHIFT_CLIENT_TARBALL_AMD64} ]; then
                                 #    wget --quiet "${OPENSHIFT_CLIENT_TARBALL_AMD64}" -O - | tar -xz
                                 #    [ $? -ne 0 ] && echo "unable to get oc tarball" && exit 1
@@ -160,7 +161,59 @@ pipeline {
                                 echo "Cluster operators are in degraded state after 90 mins Tearing off cluster!!"
                                 exit 1
                             fi
-                            '''
+                        '''
+                    }
+                    catch (err) {
+                        echo 'Error ! All Cluster Operators are not Up  !'
+                        env.FAILED_STAGE=env.STAGE_NAME
+                        throw err
+                    }
+                }
+
+            }
+        }
+        stage('Run openshift-tests-private Suite') {
+            when { expression { return env.DEPLOYMENT_STATUS == "true"; } }
+            steps {
+                 script {
+                    ansiColor('xterm') {
+                        echo ""
+                    }
+                    try {
+                        sh '''#!/bin/bash -x
+                        cd ${WORKSPACE}/deploy
+                        export PATH=$PATH:/usr/local/go/bin/
+                        export PATH=$PATH:/root/operator-sdk/build
+                        export PATH=$PATH:/root/operator-framework-olm-0e8b957251ce3edb82ca8d9139380b18df1fe55c/bin
+                        git clone git@github.com:openshift/openshift-tests-private.git
+                        cd openshift-tests-private
+                        make build
+                        cp -rp ./bin/extended-platform-tests /usr/local/bin/
+                        cd ${WORKSPACE}/deploy
+                        chmod 777 ${WORKSPACE}/scripts/openshift-tests-private.sh && ${WORKSPACE}/scripts/openshift-tests-private.sh | tee ./openshift-private-tests.log 2>&1
+                        '''
+                    }
+                    catch (err) {
+                        echo 'Error ! All Cluster Operators are not Up  !'
+                        env.FAILED_STAGE=env.STAGE_NAME
+                        throw err
+                    }
+                }
+
+            }
+        }
+        stage('Run verification/cucushift tests') {
+            when { expression { return env.DEPLOYMENT_STATUS == "true"; } }
+            steps {
+                 script {
+                    ansiColor('xterm') {
+                        echo ""
+                    }
+                    try {
+                        sh '''#!/bin/bash
+                        cd ${WORKSPACE}/deploy
+                        chmod 777 ${WORKSPACE}/scripts/verification-ipi.sh && ${WORKSPACE}/scripts/verification-ipi.sh | tee ./verification.log 2>&1
+                        '''
                     }
                     catch (err) {
                         echo 'Error ! All Cluster Operators are not Up  !'
