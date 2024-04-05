@@ -15,22 +15,24 @@ ansible-playbook  -i inventory -e @all.yaml playbooks/main.yml
 echo "Setting up environmental variables"
 OC_URL=$(oc whoami --show-server)
 OC_URL=$(echo $OC_URL | cut -d':' -f2 | tr -d [/])
+OC_CONSOLE_URL=$(oc whoami --show-console)
 export BUSHSLICER_DEFAULT_ENVIRONMENT=ocp4
 export OPENSHIFT_ENV_OCP4_HOSTS=$OC_URL:lb
 export OPENSHIFT_ENV_OCP4_USER_MANAGER_USERS=testuser:testuser
 export OPENSHIFT_ENV_OCP4_ADMIN_CREDS_SPEC=file:///root/openstack-upi/auth/kubeconfig
-export BUSHSLICER_CONFIG='
-global:
-  browser: firefox
-environments:
-  ocp4:
-    admin_creds_spec: /root/openstack-upi/auth/kubeconfig
-    version: "4.12.0"
-    #api_port: 443      # For HA clusters, both 3.x and 4.x
-    #api_port: 6443     # For non-HA 4.x clusters
-    #api_port: 8443     # For non-HA 3.x clusters
-    #web_console_url: https://console-openshift-console.apps.*.openshift.com
-'
+export BUSHSLICER_CONFIG="{'global': {'browser': 'firefox'}, 'environments': {'ocp4': {'admin_creds_spec': '/root/openstack-upi/auth/kubeconfig', 'api_port': '6443', 'web_console_url': '${OC_CONSOLE_URL}', 'version': '${OCP_RELEASE}.0'}}}"
+# export BUSHSLICER_CONFIG='
+# global:
+#   browser: firefox
+# environments:
+#   ocp4:
+#     admin_creds_spec: /root/openstack-upi/auth/kubeconfig
+#     version: "4.12.0"
+#     #api_port: 443      # For HA clusters, both 3.x and 4.x
+#     #api_port: 6443     # For non-HA 4.x clusters
+#     #api_port: 8443     # For non-HA 3.x clusters
+#     #web_console_url: https://console-openshift-console.apps.*.openshift.com
+# '
 echo $BUSHSLICER_DEFAULT_ENVIRONMENT
 echo $OPENSHIFT_ENV_OCP4_HOSTS
 echo $OPENSHIFT_ENV_OCP4_USER_MANAGER_USERS
