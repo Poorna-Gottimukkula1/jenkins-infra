@@ -1,4 +1,4 @@
-#!/bin/bash -x
+#!/bin/bash
 # select the cases per FILTERS
 echo "========"
 # create ICSP for connected env.

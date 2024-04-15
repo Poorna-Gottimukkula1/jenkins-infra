@@ -76,7 +76,7 @@ sed -i "s/gem 'azure_mgmt_resources'/#gem 'azure_mgmt_resources'/g" Gemfile
 sed -i "s/gem 'azure_mgmt_network'/#gem 'azure_mgmt_network'/g" Gemfile
 sed -i "s/BUSHSLICER_DEBUG_AFTER_FAIL=true/BUSHSLICER_DEBUG_AFTER_FAIL=false/g" config/cucumber.yml
 git clone git@github.com:openshift/cucushift.git features/tierN/
-rm -rf features/tierN/web
+#rm -rf features/tierN/web
 sudo ./tools/install_os_deps.sh
 ./tools/hack_bundle.rb
 bundle update
