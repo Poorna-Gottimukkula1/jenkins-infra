@@ -1,4 +1,4 @@
-#!/bin/bash -x
+#!/bin/bash
 # select the cases per FILTERS
 echo "========"
 # create ICSP for connected env.
@@ -127,7 +127,7 @@ function run_command() {
 
 create_icsp_connected
 create_catalog_sources
-export KUBECONFIG=/root/.kube/config
+export KUBECONFIG=/home/jenkins/.kube/config
 TEST_PROVIDER='{"type":"skeleton"}'
 TEST_SCENARIOS="MCO|ETCD|PSAP|SDN|STORAGE|API_Server|Authentication|Cluster_Operator|Cluster_Infrastructure|OLM|Network_Edge|Operator_SDK|Workloads|Image_Registry|Container_Engine_Tools|NODE|OTA|PerfScale|Cluster_Observability|Security_and_Compliance|LOGGING|CFE"
 TEST_ADDITIONAL=""

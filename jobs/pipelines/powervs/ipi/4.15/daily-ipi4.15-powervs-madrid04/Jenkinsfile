@@ -2,15 +2,17 @@
 
 pipeline {
     agent {
-        node {
-            label 'ipi-agent'
-        } 
+        docker {
+            image 'quay.io/pgottimu/cucushift-ipi:4.15.1'
+            args '-v /etc/resolv.conf:/etc/resolv.conf'
+            label 'jump-vpc-x86_64'
+        }
     }
     environment {
         //users and credentials. All must be defined in Jenkins Credentials
         PULL_SECRET = credentials('PULL_SECRET')
-        GITHUB_USER = credentials('GITHUB_USER')
-        GITHUB_TOKEN = credentials('GITHUB_TOKEN')
+        GITHUB_USER = credentials('GITHUB_USER_TEST_PG')
+        GITHUB_TOKEN = credentials('GITHUB_TOKEN_PG')
         IBMID="ltccci@in.ibm.com"
         IBMCLOUD_API_KEY=credentials('IBMCLOUD_UPSTREAM_CI_API_KEY_1')
         IC_API_KEY=credentials('IBMCLOUD_UPSTREAM_CI_API_KEY_1')
@@ -67,8 +69,9 @@ pipeline {
                     {
                         env.OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE = ""
                         if (fileExists("deploy/artifactory/latest-${OCP_RELEASE}-build.txt")) {
+                            //env.OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE = readFile "deploy/artifactory/latest-${OCP_RELEASE}-build.txt"
                             env.OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE = readFile "deploy/artifactory/latest-${OCP_RELEASE}-build.txt"
-                            env.OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE = env.OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE.trim()
+                            env.OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE = "docker-na.artifactory.swg-devops.com/sys-powercloud-docker-local/ocp-ppc64le/release-ppc64le:4.15.0-0.nightly-ppc64le-2024-04-20-232952"
                             env.OPENSHIFT_INSTALL_RELEASE_VERSION = env.OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE.split(":")[1].trim()
                         }
                         else {
@@ -77,17 +80,16 @@ pipeline {
                         }
                             sh '''
                                 cd ${WORKSPACE}/deploy
-                                rm -rf ~/.kube
                                 echo ${PULL_SECRET} > ~/.pullSecret
                                 cp -rf ${WORKSPACE}/deploy/id_rsa.pub ~/.ssh/id_installer_rsa.pub
                                 git clone https://github.com/Poorna-Gottimukkula1/powervs-hack.git -b ipi
                                 oc adm release extract --tools ${OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE} --to openshift-tools -a ~/.pullSecret
-                                tar -xvf ./openshift-tools/openshift-install-linux-${OPENSHIFT_INSTALL_RELEASE_VERSION}.tar.gz  -C /usr/local/bin
-                                tar -xvf ./openshift-tools/openshift-client-linux-${OPENSHIFT_INSTALL_RELEASE_VERSION}.tar.gz  -C /usr/local/sbin
+                                tar -xvf ./openshift-tools/openshift-install-linux-amd64-${OPENSHIFT_INSTALL_RELEASE_VERSION}.tar.gz  -C /usr/local/bin
+                                tar -xvf ./openshift-tools/openshift-client-linux-amd64-${OPENSHIFT_INSTALL_RELEASE_VERSION}.tar.gz  -C /usr/bin
                                 rm -rf ./openshift-tools
                                 #curl -L "${OPENSHIFT_INSTALLER_URL}" > openshift-install-linux.tar.gz
                                 #tar -xvf openshift-install-linux.tar.gz  -C /usr/local/bin
-                                # setup oc client
+                                 # setup oc client
                                 #if [ ${OPENSHIFT_CLIENT_TARBALL_AMD64} ]; then
                                 #    wget --quiet "${OPENSHIFT_CLIENT_TARBALL_AMD64}" -O - | tar -xz
                                 #    [ $? -ne 0 ] && echo "unable to get oc tarball" && exit 1
@@ -172,7 +174,7 @@ pipeline {
 
             }
         }
-        stage('Run openshift-tests-private Suite') {
+        stage('Setup tools and Run openshift-tests-private Suite') {
             when { expression { return env.DEPLOYMENT_STATUS == "true"; } }
             steps {
                  script {
@@ -182,14 +184,23 @@ pipeline {
                     try {
                         sh '''#!/bin/bash -x
                         cd ${WORKSPACE}/deploy
-                        export PATH=$PATH:/usr/local/go/bin/
-                        export PATH=$PATH:/root/operator-sdk/build
-                        export PATH=$PATH:/root/operator-framework-olm-0e8b957251ce3edb82ca8d9139380b18df1fe55c/bin
-                        git clone git@github.com:openshift/openshift-tests-private.git
+                        curl https://dl.google.com/go/go"${GO_VERSION}".linux-amd64.tar.gz -o go"${GO_VERSION}".linux-amd64.tar.gz
+                        tar -C /usr/local -xzf go"${GO_VERSION}".linux-amd64.tar.gz
+                        wget https://github.com/operator-framework/operator-sdk/releases/download/v1.34.1/operator-sdk_linux_amd64
+                        chmod 777 operator-sdk_linux_amd64 && mv operator-sdk_linux_amd64 /usr/local/bin/operator-sdk
+
+                        wget https://mirror.openshift.com/pub/openshift-v4/ppc64le/clients/ocp/4.15.0/opm-src-4.15.0-ppc64le.tar.gz
+                        tar -xzf opm-src-4.15.0-ppc64le.tar.gz
+                        cd operator-framework-olm-0e8b957251ce3edb82ca8d9139380b18df1fe55c
+                        make build
+                        cp -rp ./bin/* /usr/local/bin
+                        cd ..
+                        git clone https://${GITHUB_USER}:${GITHUB_TOKEN}@github.com/openshift/openshift-tests-private.git -b "release-${OCP_RELEASE}"
+                        #git clone git@github.com:openshift/openshift-tests-private.git -b "release-${OCP_RELEASE}"
                         cd openshift-tests-private
                         make build
                         cp -rp ./bin/extended-platform-tests /usr/local/bin/
-                        cd ${WORKSPACE}/deploy
+                        cd ..
                         chmod 777 ${WORKSPACE}/scripts/openshift-tests-private.sh && ${WORKSPACE}/scripts/openshift-tests-private.sh | tee ./openshift-private-tests.log 2>&1
                         '''
                     }
