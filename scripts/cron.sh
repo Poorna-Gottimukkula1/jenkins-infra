@@ -5,6 +5,9 @@ export TZ='Asia/Kolkata'
 printf "Login to the cluster "
 /usr/local/bin/oc login -u kubeadmin -p PASSWORD
 
+printf "Output of oc version at " && date
+/usr/local/bin/oc version
+
 printf "Output of oc get nodes on bastion at " && date
 /usr/local/bin/oc get nodes
 
@@ -49,6 +52,9 @@ do
 
  printf "\n Output of systemctl status kubelet on ${array[i]} at " && date
  ssh -oStrictHostKeyChecking=no core@${array[i]} /bin/systemctl status kubelet
+
+ printf "\n Output of cat /etc/os-release on ${array[i]} at " && date
+ ssh core@${array[i]} /etc/os-release
 
  printf "\n Output of systemctl status crio on ${array[i]} at " && date
  ssh core@${array[i]} /bin/systemctl status crio
