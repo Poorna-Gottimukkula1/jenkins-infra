@@ -43,6 +43,8 @@ volume_storage_template = "__VOLUME_STORAGE_TEMPLATE__"
 
 cni_network_provider = "__CNI_NETWORK_PROVIDER__"
 
+rhcos_pre_kernel_options   = ["rd.multipath=default","root=/dev/disk/by-label/dm-mpath-root"]
+
 connection_timeout = "__CONNECTION_TIME_OUT__"
 
 fips_compliant = "__FIPS_COMPLIANT__"

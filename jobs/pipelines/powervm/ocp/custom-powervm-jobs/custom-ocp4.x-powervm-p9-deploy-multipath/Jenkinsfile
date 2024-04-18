@@ -1,0 +1,204 @@
+@Library('jenkins-upstream-library') _
+pipeline {
+    agent {
+        docker {
+            image 'quay.io/powercloud/inbound-agent:4.10-3.3'
+            args '-v /etc/resolv.conf:/etc/resolv.conf -v /run/containerd/containerd.sock:/run/containerd/containerd.sock'
+            label 'jump-vpc-x86_64'
+        }
+    }
+    parameters {
+        string(defaultValue: '', description: 'Build(quay image or build number)', name: 'Build')
+        string(defaultValue: '720', description: 'Enter time(in Minutes) to retain the cluster', name: 'KeepFor')
+        string(defaultValue: '', description: 'Enter the SCG ID', name: 'ScgID')
+        string(defaultValue: 'p10_pvm', description: 'Enter the AVAILABILITY ZONE', name: 'AvailabilityZone')
+        choice(description: 'Select the OpenShift Release', choices: ['4.16','4.15','4.14','4.13','4.12'], name: 'Release')
+        choice(description: 'Select the RedHat Release Version', choices: ['9.3','9.2','9.1','9.0', '8.8','8.7'], name: 'RedHatRelease')
+    } 
+    environment {
+        //users and credentials. All must be defined in Jenkins Credentials
+        GITHUB_USER = credentials('GITHUB_USER')
+        GITHUB_TOKEN = credentials('GITHUB_TOKEN')
+        OS_USERNAME = credentials('OS_USERNAME')
+        OS_PASSWORD = credentials('OS_PASSWORD')
+        ARTIFACTORY_USER = credentials('ARTIFACTORY_USER')
+        ARTIFACTORY_TOKEN = credentials('ARTIFACTORY_TOKEN')
+        REDHAT_USERNAME = credentials('REDHAT_USERNAME')
+        REDHAT_PASSWORD = credentials('REDHAT_PASSWORD')
+        PULL_SECRET = credentials('PULL_SECRET')
+        OS_AUTH_URL=credentials('URL_SCNLPOWERCLOUD')
+
+        //Env constants
+        HARDWARE_CHOSE = "P9"
+        TERRAFORM_VER = "1.7.2"
+        TARGET = "deploy-openshift4-powervc"
+        TEMPLATE_FILE = ".${TARGET}.tfvars.template"
+        POWERVS = false
+        SCRIPT_DEPLOYMENT = false
+        WAIT_FOR_DEBUG = "1"
+        CONFIG_TYPE="min"
+
+        //Branch
+        OPENSHIFT_POWERVC_GIT_TF_DEPLOY_BRANCH="main"//The download branch
+
+        //Parameters
+        AVAILABILITY_ZONE = "${params.AvailabilityZone}"
+        REDHAT_RELEASE="${params.RedHatRelease}"
+        OCP_RELEASE="${params.Release}"
+        BUILD="${params.Build}"
+        TIMEOUT = "${params.KeepFor}"
+        SCGID = "${params.ScgID}"
+
+        //enable kdump
+        KDUMP_ENABLE="false"
+    }
+    stages {
+        stage('Setup Common Environment Variables') {
+            steps {
+                setupCommonEnvironmentVariables()
+                setupClusterConfig("${CONFIG_TYPE}")
+                script{
+                    env.INSTANCE_NAME = "rdr-man"
+                    env.OS_TENANT_NAME="icp-test"
+                    env.OS_NETWORK = "workload"
+                    env.OS_PRIVATE_NETWORK = "workload"
+                    env.SCG_ID = "${SCGID}"
+                }
+            }
+        }
+        stage('pull artifact') {
+            steps {
+                script {
+                    getArtifacts("powervm/poll-powervc-images", "rhcos-${OCP_RELEASE}-powercloud-latest.txt")
+                    getArtifacts("powervm/poll-powervc-images", "rhel-${REDHAT_RELEASE}-powercloud-latest.txt")
+                }
+            }
+        }
+        //Checkout the installer git repo
+        stage('Prepare Terraform Template') {
+            steps {
+                script {
+                    ansiColor('xterm') {
+                        echo ""
+                    }
+                    try
+                    {
+                        gbToMb()
+                        pullSecret()
+                        env.OPENSHIFT_IMAGE = ""
+                        if (env.BUILD?.trim()) {
+                            if (!env.BUILD.contains('quay')) {
+                                env.OPENSHIFT_IMAGE  = "docker-na.artifactory.swg-devops.com/sys-powercloud-docker-local/ocp-ppc64le/release-ppc64le:${env.BUILD}"
+                                sh '''
+                                    docker login -u ${ARTIFACTORY_USER} -p ${ARTIFACTORY_TOKEN} docker-na.artifactory.swg-devops.com/sys-powercloud-docker-local
+                                    docker pull ${OPENSHIFT_IMAGE}
+                                    if [ $? -ne 0 ]; then
+                                        echo "${OPENSHIFT_IMAGE}  not found"
+                                        exit 1
+                                    fi
+                                '''
+                            }
+                            else {
+                               env.OPENSHIFT_IMAGE=env.BUILD
+                            }
+                        }
+                        else {
+                            echo "CURRENT build is empty"
+                            throw err
+                        }
+                        if (fileExists("deploy/artifactory/rhcos-${OCP_RELEASE}-powercloud-latest.txt")) {
+                            env.RHCOS_IMAGE = readFile "deploy/artifactory/rhcos-${OCP_RELEASE}-powercloud-latest.txt"
+                            env.RHCOS_IMAGE_NAME = env.RHCOS_IMAGE.split()[0].trim()
+                            env.RHCOS_IMAGE_ID = env.RHCOS_IMAGE.split()[1].trim()
+                        }
+                        else {
+                            echo "rhcos-${OCP_RELEASE}-powercloud-latest.txt file does not exist. Please check poll-powervc-images job"
+                            throw err
+                        }
+                        if (fileExists("deploy/artifactory/rhel-${REDHAT_RELEASE}-powercloud-latest.txt")) {
+                            env.BASTION_IMAGE = readFile "deploy/artifactory/rhel-${REDHAT_RELEASE}-powercloud-latest.txt"
+                            env.BASTION_IMAGE_NAME = env.BASTION_IMAGE.split()[0].trim()
+                            env.BASTION_IMAGE_ID = env.BASTION_IMAGE.split()[1].trim()
+                        }
+                        else {
+                            echo "rhel-${REDHAT_RELEASE}-powercloud-latest.txt file does not exist. Please check poll-powervc-images job"
+                            throw err
+                        }
+
+                        createTemplate(env.OS_AUTH_URL, env.MASTER_VCPUS , "${MASTER_MEMORY_MB}", env.MASTER_PROCESSORS, env.MASTER_TEMPLATE)
+                        createTemplate(env.OS_AUTH_URL, env.WORKER_VCPUS , "${WORKER_MEMORY_MB}", env.WORKER_PROCESSORS, env.WORKER_TEMPLATE)
+                        createTemplate(env.OS_AUTH_URL, env.BASTION_VCPUS , "${BASTION_MEMORY_MB}", env.BASTION_PROCESSORS, env.BASTION_TEMPLATE)
+                        createTemplate(env.OS_AUTH_URL, env.BOOTSTRAP_VCPUS , "${BOOTSTRAP_MEMORY_MB}", env.BOOTSTRAP_PROCESSORS, env.BOOTSTRAP_TEMPLATE)
+                    }
+                    catch (err)
+                    {
+                        echo 'Error ! Template preparation failed !'
+                        env.FAILED_STAGE=env.STAGE_NAME
+                        throw err
+                    }
+                }
+            }
+        }
+        stage('Initialize Environment') {
+            steps {
+                initializeEnvironment()
+            }
+        }
+        stage('Setup Terraform Plugin') {
+            steps {
+                setupTerraformPlugin()
+            }
+        }
+        stage('Deploy OCP Cluster') {
+            steps {
+                deployCluster()
+            }
+        }
+        // stage('Run crontab script for capturing outputs of multiple commands') {
+        //     steps {
+        //         crontabCommandCaptureScript()
+        //     }
+        // }
+        stage('Setup Kubectl') {
+            steps {
+                setupKubeconfigOcp4()
+            }
+        }
+        stage('Validate CO status') {
+            steps {
+                validateCoStatus()
+            }
+        }
+        stage('Waiting to timeout') {
+            steps {
+                script {
+                    ansiColor('xterm') {
+                        echo ""
+                    }
+                    try {
+                        TIMEOUT_MIN = TIMEOUT.toInteger()
+                        if ( TIMEOUT_MIN != 0 )
+                        {
+                            TIMEOUT_SEC=TIMEOUT_MIN*60
+                        }
+                        echo "HOLDING THE CLUSTER TEAR DOWN FOR ${TIMEOUT_MIN} MINUTES"
+                        sleep TIMEOUT_SEC
+                        }
+                    catch (err) {
+                        echo 'Error ! Timeout stage failed!'
+                        env.FAILED_STAGE=env.STAGE_NAME
+                        throw err
+                    }
+                }
+            }
+        }
+    }
+    post {
+        always {
+            archiveAllArtifacts("deploy/vars.tfvars")
+            cleanupOcp4Cluster()
+            checkInfraError()
+            cleanWs()
+        }
+    }
+}
