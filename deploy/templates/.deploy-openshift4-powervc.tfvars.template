@@ -38,6 +38,8 @@ storage_type  = "__STORAGE_TYPE__"
 volume_size = "300"
 mount_etcd_ramdisk  = "__MOUNT_ETCD_RAMDISK__"
 
+rhcos_pre_kernel_options   = [__PRE_KERNEL_OPTIONS__]
+
 scg_id = "__SCG_ID__"
 volume_storage_template = "__VOLUME_STORAGE_TEMPLATE__"
 
