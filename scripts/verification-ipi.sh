@@ -24,7 +24,7 @@ htpasswd -bB users.htpasswd testuser2 testuser2
 htpasswd -bB users.htpasswd testuser2 testuser3
 htpasswd -bB users.htpasswd testuser2 testuser4
 oc create secret generic htpass-secret --from-file=htpasswd=users.htpasswd --dry-run=client -o yaml -n openshift-config | oc replace -f -
-echo "sleeping for 1m" && sleep 3m
+echo "sleeping for 3m" && sleep 3m
 
 oc login -u testuser1 -p testuser1
 oc login -u testuser2 -p testuser2
@@ -40,7 +40,7 @@ export BUSHSLICER_DEFAULT_ENVIRONMENT=ocp4
 export OPENSHIFT_ENV_OCP4_HOSTS=$OC_URL:lb
 export OPENSHIFT_ENV_OCP4_USER_MANAGER_USERS=testuser1:testuser1,testuser2:testuser2,testuser3:testuser3,testuser4:testuser4
 export OPENSHIFT_ENV_OCP4_ADMIN_CREDS_SPEC=file:///home/jenkins/.kube/config
-export BUSHSLICER_CONFIG="{'global': {'browser': 'firefox'}, 'environments': {'ocp4': {'admin_creds_spec': '/home/jenkins/.kube/config', 'api_port': '6443', 'web_console_url': '${OC_CONSOLE_URL}', 'version': '${ver_cli}.0'}}}"
+export BUSHSLICER_CONFIG="{'global': {'browser': 'chrome'}, 'environments': {'ocp4': {'admin_creds_spec': '/home/jenkins/.kube/config', 'api_port': '6443', 'web_console_url': '${OC_CONSOLE_URL}', 'version': '${ver_cli}.0'}}}"
 # export BUSHSLICER_CONFIG='
 # global:
 #   browser: firefox
@@ -82,6 +82,6 @@ git clone https://${GITHUB_USER}:${GITHUB_TOKEN}@github.com/openshift/cucushift.
 #./tools/install_os_deps.sh
 #./tools/hack_bundle.rb
 bundle install
-bundle exec cucumber --no-color --tags '@ppc64le and @${ver_cli} and @network-ovnkubernetes and not @inactive and not @destructive and not @fips and not @upgrade and @heterogeneous'
+bundle exec cucumber --no-color --tags '@ppc64le and @'${ver_cli}' and @network-ovnkubernetes and not @inactive and not @destructive and not @fips and not @upgrade and @heterogeneous'
 # cd features/tierN/ && git restore web && cd ../..
-# bundle exec cucumber features/tierN/web/ --no-color --tags '@ppc64le and @4.15 and @network-ovnkubernetes and not @inactive and not @destructive and not @fips and not @upgrade and @heterogeneous'
+#bundle exec cucumber features/tierN/web/ --no-color --tags "@ppc64le and @'${ver_cli}' and @network-ovnkubernetes and not @inactive and not @destructive and not @fips and not @upgrade and @heterogeneous"

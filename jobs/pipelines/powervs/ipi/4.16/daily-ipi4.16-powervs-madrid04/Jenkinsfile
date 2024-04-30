@@ -39,10 +39,11 @@ pipeline {
         JENKINS_TOKEN=""
 
         BASEDOMAIN="ppc64le-cloud.cis.ibm.net"
-        OCP_RELEASE = "4.15"
-        CLUSTER_NAME="rdr-cicd-mad04-415"
+        OCP_RELEASE = "4.16"
+        CLUSTER_NAME="rdr-cicd-mad04-416"
         CLUSTER_DIR="./ipi-install"
-        OPENSHIFT_CLIENT_TARBALL_AMD64="https://mirror.openshift.com/pub/openshift-v4/ppc64le/clients/ocp/latest-4.15/openshift-client-linux-amd64.tar.gz"
+        GO_VERSION="1.22.1"
+        OPENSHIFT_CLIENT_TARBALL_AMD64="https://mirror.openshift.com/pub/openshift-v4/amd64/clients/ocp-dev-preview/candidate-4.16/openshift-client-linux.tar.gz"
         //OPENSHIFT_INSTALLER_URL="https://mirror.openshift.com/pub/openshift-v4/amd64/clients/ocp/4.15.0-rc.8/openshift-install-linux.tar.gz"
         POWERVS = true
 	 }
@@ -70,8 +71,7 @@ pipeline {
                         env.OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE = ""
                         if (fileExists("deploy/artifactory/latest-${OCP_RELEASE}-build.txt")) {
                             env.OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE = readFile "deploy/artifactory/latest-${OCP_RELEASE}-build.txt"
-                            env.OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE = readFile "deploy/artifactory/latest-${OCP_RELEASE}-build.txt"
-                            //env.OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE = "docker-na.artifactory.swg-devops.com/sys-powercloud-docker-local/ocp-ppc64le/release-ppc64le:4.15.0-0.nightly-ppc64le-2024-04-20-232952"
+                            env.OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE = env.OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE.trim()               
                             env.OPENSHIFT_INSTALL_RELEASE_VERSION = env.OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE.split(":")[1].trim()
                         }
                         else {
@@ -127,7 +127,7 @@ pipeline {
                     }
                     try {
                         // Get Cluster Operators status
-                        sh '''#!/bin/bash
+                        sh '''
                             cd ${WORKSPACE}/deploy
                             rm -rf ~/.kube
                             mkdir ~/.kube
@@ -193,9 +193,9 @@ pipeline {
                         make build
                         cp -rp ./build/* /usr/local/bin
                         cd ..
-                        wget https://mirror.openshift.com/pub/openshift-v4/ppc64le/clients/ocp/4.15.0/opm-src-4.15.0-ppc64le.tar.gz
-                        tar -xzf opm-src-4.15.0-ppc64le.tar.gz
-                        cd operator-framework-olm-0e8b957251ce3edb82ca8d9139380b18df1fe55c
+                        wget https://mirror.openshift.com/pub/openshift-v4/ppc64le/clients/ocp-dev-preview/candidate-${OCP_RELEASE}/opm-src.tar.gz
+                        tar -xzf opm-src.tar.gz
+                        cd operator-framework-olm-*
                         make build
                         cp -rp ./bin/* /usr/local/bin
                         cd ..
@@ -242,7 +242,7 @@ pipeline {
     }
     post {
         always {
-            archiveAllArtifacts("deploy/metadata.json")
+            archiveAllArtifacts("deploy/metadata.json", "deploy/verification.log", "deploy/openshift-private-tests.log", "deploy/extended-platform-tests_cmd.log")
             script {
                sh '''#!/bin/bash
                 echo "Cleanup IPI cluster"
@@ -274,7 +274,6 @@ pipeline {
                 ./powervs-hack/scripts/get-dhcp.sh $dhcp_id -d || ibmcloud pi ins delete $dhcp_id || true
                 '''
             }
-            notifyBySlack(currentBuild.result, env.MESSAGE)
             cleanWs()
         }
     }
