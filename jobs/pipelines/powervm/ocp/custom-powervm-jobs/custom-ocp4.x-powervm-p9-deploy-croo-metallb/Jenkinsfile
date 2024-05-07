@@ -11,17 +11,17 @@ pipeline {
     parameters {
         string(defaultValue: '', description: 'Build(quay image or build number)', name: 'Build')
         string(defaultValue: '30', description: 'Enter time(in Minutes) to retain the cluster', name: 'KeepFor')
-        string(defaultValue: '1.20', description: 'Enter the Go Language Version', name: 'GoLangVersion')
-        choice(description: 'Select the OpenShift Release', choices: ['4.15','4.14','4.13','4.12'], name: 'Release')
-        choice(description: 'Select the RedHat Release Version', choices: ['9.2','9.1','9.0', '8.8','8.7'], name: 'RedHatRelease')
+        string(defaultValue: '1.22.1', description: 'Enter the Go Language Version', name: 'GoLangVersion')
+        choice(description: 'Select the OpenShift Release', choices: ['4.16','4.15','4.14','4.13','4.12'], name: 'Release')
+        choice(description: 'Select the RedHat Release Version', choices: ['9.3','9.2','9.1','9.0', '8.8','8.7'], name: 'RedHatRelease')
         choice(description: 'Select the Configuration', choices: ['min','max'], name: 'Config')
         booleanParam(defaultValue: false, name: 'RunCroE2e', description: 'Select if you want to run CRO e2e tests. E2e runs after cluster Deployed')
         booleanParam(defaultValue: true, name: 'RunMetallbE2e', description: 'Select if you want to run Metallb e2e tests. E2e runs after cluster Deployed')
     } 
     environment {
         //users and credentials. All must be defined in Jenkins Credentials
-        GITHUB_USER = credentials('GITHUB_USERNAME') //public git username and user should have access to https://github.com/openshift/openshift-tests-private.git
-        GITHUB_TOKEN = credentials('GITHUB_USERTOKEN') //public git token 
+        GITHUB_USER = credentials('GITHUB_USER_TEST_PG') //public git username and user should have access to https://github.com/openshift/openshift-tests-private.git
+        GITHUB_TOKEN = credentials('GITHUB_TOKEN_PG') //public git token 
         OS_USERNAME = credentials('OS_USERNAME')
         OS_PASSWORD = credentials('OS_PASSWORD')
         ARTIFACTORY_USER = credentials('ARTIFACTORY_USER')
@@ -62,6 +62,9 @@ pipeline {
         CONFIG_TYPE="${params.Config}"
         BUILD="${params.Build}"
         TIMEOUT = "${params.KeepFor}"
+
+        // kdump Configuration
+        KDUMP_ENABLE="false"
     }
     stages {
         stage('Clone ansible extra') {
@@ -78,6 +81,7 @@ pipeline {
         stage('pull artifact') {
             steps {
                 script {
+                    getArtifacts("mirror-openshift-release", "latest-${OCP_RELEASE}-build.txt")
                     getArtifacts("powervm/poll-powervc-images", "cicd-rhcos-${OCP_RELEASE}.latest.txt")
                     getArtifacts("powervm/poll-powervc-images", "cicd-rhel-${REDHAT_RELEASE}.latest.txt")
                 }
@@ -99,19 +103,32 @@ pipeline {
                             if (!env.BUILD.contains('quay')) {
                                 env.OPENSHIFT_IMAGE  = "docker-na.artifactory.swg-devops.com/sys-powercloud-docker-local/ocp-ppc64le/release-ppc64le:${env.BUILD}"
                                 sh '''
-                                    docker login -u ${ARTIFACTORY_USER} -p ${ARTIFACTORY_TOKEN} docker-na.artifactory.swg-devops.com/sys-powercloud-docker-local
-                                    docker pull ${OPENSHIFT_IMAGE}
+                                    nerdctl login -u ${ARTIFACTORY_USER} -p ${ARTIFACTORY_TOKEN} docker-na.artifactory.swg-devops.com/sys-powercloud-docker-local
+                                    nerdctl pull ${OPENSHIFT_IMAGE}
                                     if [ $? -ne 0 ]; then
                                         echo "${OPENSHIFT_IMAGE}  not found"
                                         exit 1
                                     fi
+                                    nerdctl rmi ${OPENSHIFT_IMAGE}
                                 '''
                             }
                             else {
                                env.OPENSHIFT_IMAGE=env.BUILD
                             }
                         }
-                        else {
+                        else if ( currentBuild.getBuildCauses('hudson.triggers.TimerTrigger$TimerTriggerCause') ){
+                            // When its cron jobs
+                            if (fileExists("deploy/artifactory/latest-${OCP_RELEASE}-build.txt")) {
+                                env.OPENSHIFT_IMAGE = readFile "deploy/artifactory/latest-${OCP_RELEASE}-build.txt"
+                                env.OPENSHIFT_IMAGE = env.OPENSHIFT_IMAGE.trim()
+                                env.OCP_RELEASE_TAG = env.OPENSHIFT_IMAGE.split(":")[1].trim()
+                                env.BUILD = env.OCP_RELEASE_TAG
+                            }
+                            else {
+                                echo "latest-${OCP_RELEASE}-build.txt file does not exist. Please check mirror-openshift-release job"
+                                throw err
+                            }
+                        } else {
                             echo "CURRENT build is empty"
                             throw err
                         }
@@ -133,7 +150,7 @@ pipeline {
                             echo "cicd-rhel-${REDHAT_RELEASE}.latest.txt file does not exist. Please check poll-powervc-images job"
                             throw err
                         }
-
+                        currentBuild.description = "OCP:${OCP_RELEASE}"
                         createTemplate(env.OS_AUTH_URL, env.MASTER_VCPUS , "${MASTER_MEMORY_MB}", env.MASTER_PROCESSORS, env.MASTER_TEMPLATE)
                         createTemplate(env.OS_AUTH_URL, env.WORKER_VCPUS , "${WORKER_MEMORY_MB}", env.WORKER_PROCESSORS, env.WORKER_TEMPLATE)
                         createTemplate(env.OS_AUTH_URL, env.BASTION_VCPUS , "${BASTION_MEMORY_MB}", env.BASTION_PROCESSORS, env.BASTION_TEMPLATE)
