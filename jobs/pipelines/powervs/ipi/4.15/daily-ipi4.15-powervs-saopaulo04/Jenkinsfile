@@ -79,7 +79,7 @@ pipeline {
                                 cd ${WORKSPACE}/deploy
                                 echo ${PULL_SECRET} > ~/.pullSecret
                                 cp -rf ${WORKSPACE}/deploy/id_rsa.pub ~/.ssh/id_installer_rsa.pub
-                                git clone https://github.com/Poorna-Gottimukkula1/powervs-hack.git
+                                git clone https://github.com/Poorna-Gottimukkula1/powervs-hack.git -b ipi
                                 oc adm release extract --tools ${OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE} --to openshift-tools -a ~/.pullSecret
                                 tar -xvf ./openshift-tools/openshift-install-linux-amd64-${OPENSHIFT_INSTALL_RELEASE_VERSION}.tar.gz  -C /usr/local/bin
                                 tar -xvf ./openshift-tools/openshift-client-linux-amd64-${OPENSHIFT_INSTALL_RELEASE_VERSION}.tar.gz  -C /usr/bin

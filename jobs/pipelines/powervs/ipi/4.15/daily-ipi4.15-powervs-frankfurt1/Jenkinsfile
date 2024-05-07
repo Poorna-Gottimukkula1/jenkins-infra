@@ -2,8 +2,10 @@
 
 pipeline {
     agent {
-        kubernetes {
-            inheritFrom 'jenkins-agent'
+        docker {
+            image 'quay.io/pgottimu/inbound-agent:4.13.3-1.2'
+            args '-v /etc/resolv.conf:/etc/resolv.conf'
+            label 'jump-vpc-x86_64'
         }
     }
     environment {
@@ -79,7 +81,7 @@ pipeline {
                                 cd ${WORKSPACE}/deploy
                                 echo ${PULL_SECRET} > ~/.pullSecret
                                 cp -rf ${WORKSPACE}/deploy/id_rsa.pub ~/.ssh/id_installer_rsa.pub
-                                git clone https://github.com/Poorna-Gottimukkula1/powervs-hack.git
+                                git clone https://github.com/Poorna-Gottimukkula1/powervs-hack.git -b ipi
                                 oc adm release extract --tools ${OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE} --to openshift-tools -a ~/.pullSecret
                                 tar -xvf ./openshift-tools/openshift-install-linux-amd64-${OPENSHIFT_INSTALL_RELEASE_VERSION}.tar.gz  -C /usr/local/bin
                                 tar -xvf ./openshift-tools/openshift-client-linux-amd64-${OPENSHIFT_INSTALL_RELEASE_VERSION}.tar.gz  -C /usr/bin
@@ -198,8 +200,8 @@ pipeline {
                 done
                 #Get connections
                 ibmcloud login -a cloud.ibm.com -r ${VPCREGION} -g ${RESOURCE_GROUP} -q --apikey=${IBMCLOUD_API_KEY}
-                cons=$(ibmcloud pi cons| grep "cloud-con-rdr-cicd"|awk '{print $1}')
-                echo "$cons"| while IFS= read -r line ; do ibmcloud pi connection-delete $line; done || true
+                cons=$(ibmcloud pi cloud-connection list | grep "cloud-con-rdr-cicd"|awk '{print $1}')
+                echo "$cons"| while IFS= read -r line ; do ibmcloud pi cloud-connection delete $line; done || true
                 #Get DHCP
                 ./powervs-hack/scripts/get-dhcp.sh || true
                 dhcp_id=$(./powervs-hack/scripts/get-dhcp.sh | awk 'FNR == 4 {print $1}')

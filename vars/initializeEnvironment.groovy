@@ -21,8 +21,8 @@ def call(String region="us-south",resource_group="ibm-internal-cicd-resource-gro
                 curl -sL https://raw.githubusercontent.com/ppc64le-cloud/pvsadm/master/get.sh | VERSION="v0.1.8" FORCE=1 bash
                 ibmcloud login -a cloud.ibm.com -r ${REGION} -g ${RESOURCE_GROUP} -q --apikey=${IBMCLOUD_API_KEY}
                 ibmcloud target -r ${REGION} -g ${RESOURCE_GROUP}
-                CRN=$(ibmcloud pi service-list  | grep "${SERVICE_INSTANCE_ID}" |awk '{print $1}')
-                ibmcloud pi service-target "$CRN"
+                CRN=$(ibmcloud pi workspace ls  | grep "${SERVICE_INSTANCE_ID}" |awk '{print $1}')
+                ibmcloud pi workspace target "$CRN"
             fi
             # Setting oc client
 	    if [ ${OPENSHIFT_CLIENT_TARBALL_AMD64} ]; then
