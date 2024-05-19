@@ -46,6 +46,7 @@ pipeline {
         OPENSHIFT_CLIENT_TARBALL_AMD64="https://mirror.openshift.com/pub/openshift-v4/amd64/clients/ocp-dev-preview/candidate-4.16/openshift-client-linux.tar.gz"
         //OPENSHIFT_INSTALLER_URL="https://mirror.openshift.com/pub/openshift-v4/amd64/clients/ocp/4.15.0-rc.8/openshift-install-linux.tar.gz"
         POWERVS = true
+        TIMEOUT = "720"
 	 }
     stages {
         stage('pull artifact') {
@@ -82,7 +83,7 @@ pipeline {
                                 cd ${WORKSPACE}/deploy
                                 echo ${PULL_SECRET} > ~/.pullSecret
                                 cp -rf ${WORKSPACE}/deploy/id_rsa.pub ~/.ssh/id_installer_rsa.pub
-                                git clone https://github.com/Poorna-Gottimukkula1/powervs-hack.git -b ipi
+                                git clone https://github.com/Poorna-Gottimukkula1/powervs-hack.git
                                 oc adm release extract --tools ${OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE} --to openshift-tools -a ~/.pullSecret
                                 tar -xvf ./openshift-tools/openshift-install-linux-amd64-${OPENSHIFT_INSTALL_RELEASE_VERSION}.tar.gz  -C /usr/local/bin
                                 tar -xvf ./openshift-tools/openshift-client-linux-amd64-${OPENSHIFT_INSTALL_RELEASE_VERSION}.tar.gz  -C /usr/bin
@@ -237,6 +238,29 @@ pipeline {
                     }
                 }
 
+            }
+        }
+        stage('Waiting to timeout') {
+            steps {
+                script {
+                    ansiColor('xterm') {
+                        echo ""
+                    }
+                    try {
+                        TIMEOUT_MIN = TIMEOUT.toInteger()
+                        if ( TIMEOUT_MIN != 0 )
+                        {
+                            TIMEOUT_SEC=TIMEOUT_MIN*60
+                        }
+                        echo "HOLDING THE CLUSTER TEAR DOWN FOR ${TIMEOUT_MIN} MINUTES"
+                        sleep TIMEOUT_SEC
+                        }
+                    catch (err) {
+                        echo 'Error ! Timeout stage failed!'
+                        env.FAILED_STAGE=env.STAGE_NAME
+                        throw err
+                    }
+                }
             }
         }
     }
