@@ -28,7 +28,7 @@ pipeline {
                         cd ${WORKSPACE}/scripts
                         nerdctl login -u ${ARTIFACTORY_USER} -p ${ARTIFACTORY_TOKEN} ${DOCKER_REGISTRY}
                         oc login --token=${CI_OCP_TOKEN} --server=https://api.ci.l2s4.p1.openshiftapps.com:6443
-                        oc registry login --skip-check
+                        oc registry login --skip-check --registry-config ~/.docker/config.json
                         ./mirror-images.sh || true
                     '''
                     }
