@@ -41,18 +41,6 @@ export OPENSHIFT_ENV_OCP4_HOSTS=$OC_URL:lb
 export OPENSHIFT_ENV_OCP4_USER_MANAGER_USERS=testuser1:testuser1,testuser2:testuser2,testuser3:testuser3,testuser4:testuser4
 export OPENSHIFT_ENV_OCP4_ADMIN_CREDS_SPEC=file:///home/jenkins/.kube/config
 export BUSHSLICER_CONFIG="{'global': {'browser': 'chrome'}, 'environments': {'ocp4': {'admin_creds_spec': '/home/jenkins/.kube/config', 'api_port': '6443', 'web_console_url': '${OC_CONSOLE_URL}', 'version': '${ver_cli}.0'}}}"
-# export BUSHSLICER_CONFIG='
-# global:
-#   browser: firefox
-# environments:
-#   ocp4:
-#     admin_creds_spec: /root/.kube/config
-#     version: "4.15.0"
-#     #api_port: 443      # For HA clusters, both 3.x and 4.x
-#     api_port: 6443     # For non-HA 4.x clusters
-#     #api_port: 8443     # For non-HA 3.x clusters
-#     web_console_url: https://console-openshift-console.apps.*.openshift.com
-# '
 echo $BUSHSLICER_DEFAULT_ENVIRONMENT
 echo $OPENSHIFT_ENV_OCP4_HOSTS
 echo $OPENSHIFT_ENV_OCP4_USER_MANAGER_USERS
@@ -77,11 +65,7 @@ sed -i "s/gem 'azure_mgmt_resources'/#gem 'azure_mgmt_resources'/g" Gemfile
 sed -i "s/gem 'azure_mgmt_network'/#gem 'azure_mgmt_network'/g" Gemfile
 sed -i "s/BUSHSLICER_DEBUG_AFTER_FAIL=true/BUSHSLICER_DEBUG_AFTER_FAIL=false/g" config/cucumber.yml
 git clone https://${GITHUB_USER}:${GITHUB_TOKEN}@github.com/openshift/cucushift.git features/tierN/
-#git clone git@github.com:openshift/cucushift.git features/tierN/
-#rm -rf features/tierN/web
 #./tools/install_os_deps.sh
 #./tools/hack_bundle.rb
 bundle install
 bundle exec cucumber --no-color --tags '@ppc64le and @'${ver_cli}' and @network-ovnkubernetes and not @inactive and not @destructive and not @fips and not @upgrade and @heterogeneous'
-# cd features/tierN/ && git restore web && cd ../..
-#bundle exec cucumber features/tierN/web/ --no-color --tags "@ppc64le and @'${ver_cli}' and @network-ovnkubernetes and not @inactive and not @destructive and not @fips and not @upgrade and @heterogeneous"

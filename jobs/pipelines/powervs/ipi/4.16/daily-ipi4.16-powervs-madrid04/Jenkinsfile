@@ -29,18 +29,18 @@ pipeline {
         IBMCLOUD_OIRICCC_API_KEY=credentials('IBMCLOUD_OIRICCC_API_KEY')
 
         //PowerVS specific variables
-        POWERVS_REGION = "mad"
-        POWERVS_ZONE = "mad04"
-        SERVICE_INSTANCE_GUID = "2e322992-9e36-43db-a017-bcc364bfb4b2"
-        VPCREGION= "eu-es"
+        POWERVS_REGION = "wdc"
+        POWERVS_ZONE = "wdc06"
+        SERVICE_INSTANCE_GUID = "ee746023-4bbe-4bae-b747-e79b3fd229ca"
+        VPCREGION= "us-east"
         RESOURCE_GROUP="ibm-internal-cicd-resource-group"
-        SERVICE_INSTANCE="rdr-ipi-cicd-madrid04"
+        SERVICE_INSTANCE="rdr-ipi-cicd-washingtondc06"
 
         JENKINS_TOKEN=""
 
         BASEDOMAIN="ppc64le-cloud.cis.ibm.net"
         OCP_RELEASE = "4.16"
-        CLUSTER_NAME="rdr-cicd-mad04-416"
+        CLUSTER_NAME="rdr-cicd-wdc06-416"
         CLUSTER_DIR="./ipi-install"
         GO_VERSION="1.22.1"
         OPENSHIFT_CLIENT_TARBALL_AMD64="https://mirror.openshift.com/pub/openshift-v4/amd64/clients/ocp-dev-preview/candidate-4.16/openshift-client-linux.tar.gz"
@@ -102,7 +102,8 @@ pipeline {
                                 sed -i "s|\\.Payload\\.jobs\\[\\]|\\.jobs\\[\\]|g" ./powervs-hack/scripts/create-cluster.sh
                                 sed -i "s|export OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE.*$|export OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE=\\"${OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE}\\"|g" ./powervs-hack/scripts/create-cluster.sh
                                 sed -i "s|export OPENSHIFT_INSTALL_OS_IMAGE_OVERRIDE.*$||g" ./powervs-hack/scripts/create-cluster.sh
-                                sed -i "s|platform: {}|platform: \\n    powervs:\\n      processors: \\"0.5\\"\\n      sysType: s1022|g" ./powervs-hack/scripts/create-cluster.sh
+                                sed -i "s|platform: {}|platform: \\n    powervs:\\n      processors: \\"0.5\\"\\n      sysType: e980|g" ./powervs-hack/scripts/create-cluster.sh
+                                sed -i "s|USE_CAPI=false|USE_CAPI=true|g" ./powervs-hack/scripts/create-cluster.sh
                             '''
                     }
                     catch (err)
