@@ -2,17 +2,15 @@
 
 pipeline {
     agent {
-        docker {
-            image 'quay.io/pgottimu/cucushift-ipi:4.15.1'
-            args '-v /etc/resolv.conf:/etc/resolv.conf'
-            label 'jump-vpc-x86_64'
+        kubernetes {
+            inheritFrom 'jenkins-agent'
         }
     }
     environment {
         //users and credentials. All must be defined in Jenkins Credentials
         PULL_SECRET = credentials('PULL_SECRET')
-        GITHUB_USER = credentials('GITHUB_USER_TEST_PG')
-        GITHUB_TOKEN = credentials('GITHUB_TOKEN_PG')
+        GITHUB_USER = credentials('GITHUB_USER')
+        GITHUB_TOKEN = credentials('GITHUB_TOKEN')
         IBMID="ltccci@in.ibm.com"
         IBMCLOUD_API_KEY=credentials('IBMCLOUD_UPSTREAM_CI_API_KEY_1')
         IC_API_KEY=credentials('IBMCLOUD_UPSTREAM_CI_API_KEY_1')
@@ -42,11 +40,9 @@ pipeline {
         OCP_RELEASE = "4.16"
         CLUSTER_NAME="rdr-cicd-mad04-416"
         CLUSTER_DIR="./ipi-install"
-        GO_VERSION="1.22.1"
         OPENSHIFT_CLIENT_TARBALL_AMD64="https://mirror.openshift.com/pub/openshift-v4/amd64/clients/ocp-dev-preview/candidate-4.16/openshift-client-linux.tar.gz"
-        //OPENSHIFT_INSTALLER_URL="https://mirror.openshift.com/pub/openshift-v4/amd64/clients/ocp/4.15.0-rc.8/openshift-install-linux.tar.gz"
+        //OPENSHIFT_INSTALLER_URL="https://mirror.openshift.com/pub/openshift-v4/amd64/clients/ocp-dev-preview/candidate-4.16/openshift-install-linux.tar.gz"
         POWERVS = true
-        TIMEOUT = "720"
 	 }
     stages {
         stage('pull artifact') {
@@ -72,7 +68,7 @@ pipeline {
                         env.OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE = ""
                         if (fileExists("deploy/artifactory/latest-${OCP_RELEASE}-build.txt")) {
                             env.OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE = readFile "deploy/artifactory/latest-${OCP_RELEASE}-build.txt"
-                            env.OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE = env.OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE.trim()               
+                            env.OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE = env.OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE.trim()
                             env.OPENSHIFT_INSTALL_RELEASE_VERSION = env.OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE.split(":")[1].trim()
                         }
                         else {
@@ -128,7 +124,7 @@ pipeline {
                     }
                     try {
                         // Get Cluster Operators status
-                        sh '''
+                        sh '''#!/bin/bash
                             cd ${WORKSPACE}/deploy
                             rm -rf ~/.kube
                             mkdir ~/.kube
@@ -164,7 +160,7 @@ pipeline {
                                 echo "Cluster operators are in degraded state after 90 mins Tearing off cluster!!"
                                 exit 1
                             fi
-                        '''
+                            '''
                     }
                     catch (err) {
                         echo 'Error ! All Cluster Operators are not Up  !'
@@ -173,100 +169,12 @@ pipeline {
                     }
                 }
 
-            }
-        }
-        stage('Setup tools and Run openshift-tests-private Suite') {
-            when { expression { return env.DEPLOYMENT_STATUS == "true"; } }
-            steps {
-                 script {
-                    ansiColor('xterm') {
-                        echo ""
-                    }
-                    try {
-                        sh '''#!/bin/bash -x
-                        cd ${WORKSPACE}/deploy
-                        curl https://dl.google.com/go/go"${GO_VERSION}".linux-amd64.tar.gz -o go"${GO_VERSION}".linux-amd64.tar.gz
-                        tar -C /usr/local -xzf go"${GO_VERSION}".linux-amd64.tar.gz
-                        #wget https://github.com/operator-framework/operator-sdk/releases/download/v1.34.1/operator-sdk_linux_amd64
-                        #chmod 777 operator-sdk_linux_amd64 && mv operator-sdk_linux_amd64 /usr/local/bin/operator-sdk
-                        git clone https://github.com/operator-framework/operator-sdk
-                        cd operator-sdk/
-                        make build
-                        cp -rp ./build/* /usr/local/bin
-                        cd ..
-                        wget https://mirror.openshift.com/pub/openshift-v4/ppc64le/clients/ocp-dev-preview/candidate-${OCP_RELEASE}/opm-src.tar.gz
-                        tar -xzf opm-src.tar.gz
-                        cd operator-framework-olm-*
-                        make build
-                        cp -rp ./bin/* /usr/local/bin
-                        cd ..
-                        git clone https://${GITHUB_USER}:${GITHUB_TOKEN}@github.com/openshift/openshift-tests-private.git -b "release-${OCP_RELEASE}"
-                        #git clone git@github.com:openshift/openshift-tests-private.git -b "release-${OCP_RELEASE}"
-                        cd openshift-tests-private
-                        make build
-                        cp -rp ./bin/extended-platform-tests /usr/local/bin/
-                        cd ..
-                        chmod 777 ${WORKSPACE}/scripts/openshift-tests-private.sh && ${WORKSPACE}/scripts/openshift-tests-private.sh | tee ./openshift-private-tests.log 2>&1
-                        '''
-                    }
-                    catch (err) {
-                        echo 'Error ! All Cluster Operators are not Up  !'
-                        env.FAILED_STAGE=env.STAGE_NAME
-                        throw err
-                    }
-                }
-
-            }
-        }
-        stage('Run verification/cucushift tests') {
-            when { expression { return env.DEPLOYMENT_STATUS == "true"; } }
-            steps {
-                 script {
-                    ansiColor('xterm') {
-                        echo ""
-                    }
-                    try {
-                        sh '''#!/bin/bash
-                        cd ${WORKSPACE}/deploy
-                        chmod 777 ${WORKSPACE}/scripts/verification-ipi.sh && ${WORKSPACE}/scripts/verification-ipi.sh | tee ./verification.log 2>&1
-                        '''
-                    }
-                    catch (err) {
-                        echo 'Error ! All Cluster Operators are not Up  !'
-                        env.FAILED_STAGE=env.STAGE_NAME
-                        throw err
-                    }
-                }
-
-            }
-        }
-        stage('Waiting to timeout') {
-            steps {
-                script {
-                    ansiColor('xterm') {
-                        echo ""
-                    }
-                    try {
-                        TIMEOUT_MIN = TIMEOUT.toInteger()
-                        if ( TIMEOUT_MIN != 0 )
-                        {
-                            TIMEOUT_SEC=TIMEOUT_MIN*60
-                        }
-                        echo "HOLDING THE CLUSTER TEAR DOWN FOR ${TIMEOUT_MIN} MINUTES"
-                        sleep TIMEOUT_SEC
-                        }
-                    catch (err) {
-                        echo 'Error ! Timeout stage failed!'
-                        env.FAILED_STAGE=env.STAGE_NAME
-                        throw err
-                    }
-                }
             }
         }
     }
     post {
         always {
-            archiveAllArtifacts("deploy/metadata.json", "deploy/verification.log", "deploy/openshift-private-tests.log", "deploy/extended-platform-tests_cmd.log")
+            archiveAllArtifacts("deploy/metadata.json")
             script {
                sh '''#!/bin/bash
                 echo "Cleanup IPI cluster"
@@ -298,6 +206,7 @@ pipeline {
                 ./powervs-hack/scripts/get-dhcp.sh $dhcp_id -d || ibmcloud pi ins delete $dhcp_id || true
                 '''
             }
+            notifyBySlack(currentBuild.result, env.MESSAGE)
             cleanWs()
         }
     }
