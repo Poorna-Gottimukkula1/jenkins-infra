@@ -46,7 +46,7 @@ if [ ! -z "${BASTION_IP}" ]; then
         tar -czf ${WORKSPACE}/results.tar.gz ${WORKSPACE}/ocs-upi-kvm/scripts/tier*.log ${WORKSPACE}/logs-ocs-ci ${WORKSPACE}/ocs-upi-kvm/scripts/deploy-ocs-ci.log ${WORKSPACE}/ocs-upi-kvm/scripts/setup-ocs-ci.log ${WORKSPACE}/ocs-upi-kvm/scripts/helper/vault-setup.log ${WORKSPACE}/ocs-upi-kvm/scripts/helper/kustomize.log ${WORKSPACE}/odf-commands.txt  ${WORKSPACE}/ocs-upi-kvm/scripts/upgrade-ocs-ci.log ${WORKSPACE}/odf-full-build.txt ${WORKSPACE}/logs-ocs-ci/${ODF_VERSION}/test_results_tier*.xml ${WORKSPACE}/ocs-upi-kvm/scripts/tier${TIER_TEST}.log --ignore-failed-read > /dev/null 2>&1
         scp -i id_rsa -o StrictHostKeyChecking=no root@${BASTION_IP}:~/cro_e2e_output.txt .
         scp -i id_rsa -o StrictHostKeyChecking=no root@${BASTION_IP}:~/kdump.tar.gz .
-        scp -i id_rsa -o StrictHostKeyChecking=no root@${BASTION_IP}:/tmp/cro-operator/e2e-test-result/cro-e2e-test-summary.txt .
+        scp -i id_rsa -o StrictHostKeyChecking=no root@${BASTION_IP}:/tmp/croo/e2e-test-result/croo_e2e_output_*.txt .
         scp -i id_rsa -o StrictHostKeyChecking=no root@${BASTION_IP}:/tmp/metallb/e2e-metallb-*-logs.txt .
         # Restoring resolv.conf
         cp -rf /etc/resolv.conf.tmp /etc/resolv.conf || true

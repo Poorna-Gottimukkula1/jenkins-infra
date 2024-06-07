@@ -1,10 +1,8 @@
 @Library('jenkins-upstream-library') _
 pipeline {
     agent {
-        docker {
-            image 'quay.io/powercloud/inbound-agent:3107.v665000b_51092-14-jdk17.2'
-            args '-v /etc/resolv.conf:/etc/resolv.conf -v /run/containerd/containerd.sock:/run/containerd/containerd.sock'
-            label 'jump-vpc-x86_64'
+        kubernetes {
+            inheritFrom 'jenkins-agent'
         }
     }
     options {
@@ -90,6 +88,7 @@ pipeline {
                     cat all-4.15-builds.txt | grep '\\-ec' > all-4.15-ec-builds.txt
                     cat all-4.15-builds.txt | grep '\\-rc' > all-4.15-rc-builds.txt
                     cat all-4.16-builds.txt | grep '\\-ec' > all-4.16-ec-builds.txt
+                    cat all-4.16-builds.txt | grep '\\-rc' > all-4.16-rc-builds.txt
 
 
                     #Latest stable build
@@ -106,6 +105,7 @@ pipeline {
                     cat all-4.15-rc-builds.txt |head -n 1|awk '{print $1}' > latest-4.15-rc-build.txt
                     cat all-4.15-ec-builds.txt |head -n 1|awk '{print $1}' > latest-4.15-ec-build.txt
                     cat all-4.16-ec-builds.txt |head -n 1|awk '{print $1}' > latest-4.16-ec-build.txt
+                    cat all-4.16-rc-builds.txt |head -n 1|awk '{print $1}' > latest-4.16-rc-build.txt
                     '''
                     }
                     catch (err)
@@ -128,10 +128,10 @@ pipeline {
                                   "latest-4.14-build.txt", "latest-4.15-build.txt", "latest-4.16-build.txt",
                                   "all-4.8-stable-builds.txt", "all-4.9-stable-builds.txt","all-4.10-stable-builds.txt",
                                   "all-4.11-stable-builds.txt","all-4.12-stable-builds.txt","all-4.13-stable-builds.txt", "all-4.14-stable-builds.txt", "all-4.15-stable-builds.txt",
-                                  "all-4.14-ec-builds.txt", "all-4.14-rc-builds.txt", "all-4.15-ec-builds.txt", "all-4.15-rc-builds.txt", "all-4.16-ec-builds.txt",
+                                  "all-4.14-ec-builds.txt", "all-4.14-rc-builds.txt", "all-4.15-ec-builds.txt", "all-4.15-rc-builds.txt", "all-4.16-ec-builds.txt", "all-4.16-rc-builds.txt",
                                   "latest-4.8-stable-build.txt", "latest-4.9-stable-build.txt", "latest-4.10-stable-build.txt",
                                   "latest-4.11-stable-build.txt", "latest-4.12-stable-build.txt","latest-4.13-stable-build.txt", "latest-4.14-stable-build.txt", "latest-4.15-stable-build.txt",
-                                  "latest-4.14-ec-build.txt", "latest-4.14-rc-build.txt", "latest-4.15-rc-build.txt", "latest-4.15-ec-build.txt", "latest-4.16-ec-build.txt")
+                                  "latest-4.14-ec-build.txt", "latest-4.14-rc-build.txt", "latest-4.15-rc-build.txt", "latest-4.15-ec-build.txt", "latest-4.16-ec-build.txt", "latest-4.16-rc-build.txt")
             cleanWs()
         }
     }
