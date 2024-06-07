@@ -74,7 +74,7 @@ pipeline {
             steps {
                 script {
                     getArtifacts("mirror-openshift-release", "latest-${OCP_RELEASE}-stable-build.txt")
-                    getArtifacts("mirror-openshift-release", "latest-${UPGRADE_OCP_RELEASE}-ec-build.txt")
+                    getArtifacts("mirror-openshift-release", "latest-${UPGRADE_OCP_RELEASE}-rc-build.txt")
                     getArtifacts("powervm/poll-powervc-images", "cicd-rhcos-${OCP_RELEASE}.latest.txt")
                     getArtifacts("powervm/poll-powervc-images", "cicd-rhel-${REDHAT_RELEASE}.latest.txt")
                 }

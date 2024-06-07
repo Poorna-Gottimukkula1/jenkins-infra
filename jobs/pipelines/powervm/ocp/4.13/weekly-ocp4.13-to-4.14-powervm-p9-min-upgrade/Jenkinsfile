@@ -24,7 +24,7 @@ pipeline {
 
         //Env constants
         HARDWARE_CHOSE = "P9"
-        TERRAFORM_VER = "1.2.0"
+        TERRAFORM_VER = "1.8.4"
 
         OCP_RELEASE="4.13"
         TARGET = "deploy-openshift4-powervc"

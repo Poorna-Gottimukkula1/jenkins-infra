@@ -33,7 +33,6 @@ pipeline {
         //Env constants
         HARDWARE_CHOSE = "P9"
         TERRAFORM_VER = "1.8.4"
-        AVAILABILITY_ZONE = "p9_ocp"
         TARGET = "deploy-openshift4-powervc"
         TEMPLATE_FILE = ".${TARGET}.tfvars.template"
         POWERVS = false
@@ -51,9 +50,9 @@ pipeline {
         //Metallb operator E2e
         ENABLE_METALLB_E2E_TEST="${params.RunMetallbE2e}"
         //Ip address for metallb Operators E2E
-        L2_ADDRESS1="9.114.98.195"
-        L2_ADDRESS2="9.114.98.196"
-        BGB_ADDRESS1="9.114.98.197"
+        L2_ADDRESS1="10.20.182.101"
+        L2_ADDRESS2="10.20.182.102"
+        BGB_ADDRESS1="10.20.182.103"
 
         //Parameters
         REDHAT_RELEASE="${params.RedHatRelease}"

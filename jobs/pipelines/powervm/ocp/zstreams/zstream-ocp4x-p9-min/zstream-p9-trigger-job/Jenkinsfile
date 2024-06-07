@@ -66,8 +66,8 @@ def getChangedFilesList() {
             mkdir "versions"
         fi
 
-        # Checking if new builds are available for OCP 4.12, 4.13 and 4.14
-        for ocp_version in 12 13 14
+        # Checking if new builds are available for OCP 4.13, 4.14 and 4.15
+        for ocp_version in 13 14 15
         do
             VERSION=`curl -X GET "https://quay.io/api/v1/repository/openshift-release-dev/ocp-release/tag/?onlyActiveTags=true&limit=100" | jq '.tags | sort_by(.start_ts) | .[].name' | grep "4.${ocp_version}.*ppc64le" | grep -v "multi\\|rc\\|ec\\|fc" | tail -1 | tr -d '"'`
             if [ "$VERSION" = "" ] && [ ! -f versions/4.$ocp_version.txt ];

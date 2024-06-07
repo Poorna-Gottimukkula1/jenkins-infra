@@ -20,13 +20,11 @@ pipeline {
         GITHUB_TOKEN = credentials('GITHUB_TOKEN')
         OS_USERNAME = credentials('OS_USERNAME')
         OS_PASSWORD = credentials('OS_PASSWORD')
-        DOCKER_USER = credentials('DOCKER_USER')
         ARTIFACTORY_USER = credentials('ARTIFACTORY_USER')
-        DOCKER_PASSWORD = credentials('ARTIFACTORY_TOKEN')
+        ARTIFACTORY_TOKEN = credentials('ARTIFACTORY_TOKEN')
         REDHAT_USERNAME = credentials('REDHAT_USERNAME')
         REDHAT_PASSWORD = credentials('REDHAT_PASSWORD')
         PULL_SECRET = credentials('PULL_SECRET')
-        OS_AUTH_URL=credentials('URL_SCNLPOWERCLOUD')
 
         //IBM Cloud API key is used for uploading must-gather logs to IBM COS
         IBMCLOUD_API_KEY = credentials('IBM_PCLOUD_QE_API_KEY')
@@ -72,23 +70,19 @@ pipeline {
                     env.BASTION_VCPUS = "1"
                     env.BOOTSTRAP_VCPUS = "1"
                     env.BOOTSTRAP_MEMORY = "8"
-                    env.OS_TENANT_NAME="icp-test"
-                    env.OS_NETWORK = "workload"
-                    env.OS_PRIVATE_NETWORK = "workload"
-                    env.SCG_ID = "4366c1e2-bb4f-4c3d-98a2-06cc39bbc58d"
                     env.MOUNT_ETCD_RAMDISK = "false"
                     env.SETUP_SQUID_PROXY = "true"
 
-                    if (env.OCP_RELEASE == "4.11"){
-                        env.REDHAT_RELEASE = "8.5"
-                        env.GOLANG_TARBALL = "https://dl.google.com/go/go1.17.6.linux-ppc64le.tar.gz"
+                    if (env.OCP_RELEASE == "4.13") {
+                        env.REDHAT_RELEASE = "9.2"
+                        env.GOLANG_TARBALL = "https://golang.org/dl/go1.20.8.linux-ppc64le.tar.gz"
                     }
-                    else if (env.OCP_RELEASE == "4.12"){
-                        env.REDHAT_RELEASE = "8.6"
-                        env.GOLANG_TARBALL = "https://dl.google.com/go/go1.18.6.linux-ppc64le.tar.gz"
+                    else if (env.OCP_RELEASE == "4.14") {
+                        env.REDHAT_RELEASE = "9.3"
+                        env.GOLANG_TARBALL = "https://golang.org/dl/go1.20.8.linux-ppc64le.tar.gz"
                     }
                     else {
-                        env.REDHAT_RELEASE = "9.2"
+                        env.REDHAT_RELEASE = "9.3"
                         env.GOLANG_TARBALL = "https://golang.org/dl/go1.20.8.linux-ppc64le.tar.gz"
                     }
                 }
@@ -116,14 +110,15 @@ pipeline {
                         env.OPENSHIFT_IMAGE = ""
                         if (env.BUILD?.trim()) {
                             if (!env.BUILD.contains('quay')) {
-                                env.OPENSHIFT_IMAGE  = "sys-powercloud-docker-local.artifactory.swg-devops.com/ocp-ppc64le/release-ppc64le:${env.BUILD}"
+                                env.OPENSHIFT_IMAGE  = "docker-na.artifactory.swg-devops.com/sys-powercloud-docker-local/ocp-ppc64le/release-ppc64le:${env.BUILD}"
                                 sh '''
-                                    nerdctl login sys-powercloud-docker-local.artifactory.swg-devops.com -u ${DOCKER_USER} -p ${DOCKER_PASSWORD}
+                                    nerdctl login -u ${ARTIFACTORY_USER} -p ${ARTIFACTORY_TOKEN} docker-na.artifactory.swg-devops.com/sys-powercloud-docker-local
                                     nerdctl pull ${OPENSHIFT_IMAGE}
                                     if [ $? -ne 0 ]; then
                                         echo "${OPENSHIFT_IMAGE} not found"
                                         exit 1
                                     fi
+                                    nerdctl rmi ${OPENSHIFT_IMAGE}
                                 '''
                             }
                             else {
@@ -241,7 +236,7 @@ pipeline {
                     storeMustGatherLogs()
                     checkInfraError()
                     processE2eResults()
-                    notifyBySlack(currentBuild.result, env.MESSAGE)
+                    //notifyBySlack(currentBuild.result, env.MESSAGE)
                 }
                 catch (err){
                     echo 'Error ! Always block failed!' 
