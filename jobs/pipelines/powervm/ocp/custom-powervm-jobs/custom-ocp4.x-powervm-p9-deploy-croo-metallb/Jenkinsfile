@@ -263,7 +263,7 @@ pipeline {
     }
     post {
         always {
-            archiveAllArtifacts("deploy/cro-e2e-test-summary.txt", "deploy/e2e-metallb-repo-logs.txt", "deploy/e2e-metallb-private-logs.txt", "deploy/vars.tfvars")
+            archiveAllArtifacts("deploy/croo_e2e_output_*.txt", "deploy/e2e-metallb-repo-logs.txt", "deploy/e2e-metallb-private-logs.txt", "deploy/vars.tfvars")
             cleanupOcp4Cluster()
             checkInfraError()
             script{

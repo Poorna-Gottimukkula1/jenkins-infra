@@ -63,7 +63,7 @@ pipeline {
                 setupCommonEnvironmentVariables()
                 setupClusterConfig("${CONFIG_TYPE}")
                 script {
-                    env.UPGRADE_OCP_RELEASE="4.15"
+                    env.UPGRADE_OCP_RELEASE="4.16"
                     env.MOUNT_ETCD_RAMDISK="false"
                     env.E2E_BRANCH="release-${env.UPGRADE_OCP_RELEASE}"
                     env.E2E_EXCLUDE_LIST="https://raw.github.ibm.com/redstack-power/e2e-exclude-list/${env.UPGRADE_OCP_RELEASE}-powervm/ocp${env.UPGRADE_OCP_RELEASE}_power_exclude_list.txt"
@@ -102,12 +102,12 @@ pipeline {
                             throw err
                         }
                         env.UPGRADE_IMAGE  = ""
-                        if (fileExists("deploy/artifactory/latest-${UPGRADE_OCP_RELEASE}-ec-build.txt")) {
-                            env.UPGRADE_IMAGE = readFile "deploy/artifactory/latest-${UPGRADE_OCP_RELEASE}-ec-build.txt"
+                        if (fileExists("deploy/artifactory/latest-${UPGRADE_OCP_RELEASE}-rc-build.txt")) {
+                            env.UPGRADE_IMAGE = readFile "deploy/artifactory/latest-${UPGRADE_OCP_RELEASE}-rc-build.txt"
                             env.UPGRADE_IMAGE = env.UPGRADE_IMAGE.trim()
                         }
                         else {
-                            echo "latest-${UPGRADE_OCP_RELEASE}-build.txt file does not exist. Please check mirror-openshift-release job"
+                            echo "latest-${UPGRADE_OCP_RELEASE}-rc-build.txt file does not exist. Please check mirror-openshift-release job"
                             throw err
                         }
                         if (fileExists("deploy/artifactory/cicd-rhcos-${OCP_RELEASE}.latest.txt")) {
