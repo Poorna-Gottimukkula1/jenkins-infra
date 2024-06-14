@@ -4,7 +4,7 @@ pipeline {
     agent {
         docker {
             image 'quay.io/powercloud/inbound-agent:3107.v665000b_51092-14-jdk17.2'
-            args '-v /etc/resolv.conf:/etc/resolv.conf -v /var/run/docker.sock:/var/run/docker.sock'
+            args '-v /etc/resolv.conf:/etc/resolv.conf -v /run/containerd/containerd.sock:/run/containerd/containerd.sock'
             label 'jump-vpc-x86_64'
         }
     }
@@ -20,13 +20,11 @@ pipeline {
         GITHUB_TOKEN = credentials('GITHUB_TOKEN')
         OS_USERNAME = credentials('OS_USERNAME')
         OS_PASSWORD = credentials('OS_PASSWORD')
-        DOCKER_USER = credentials('DOCKER_USER')
         ARTIFACTORY_USER = credentials('ARTIFACTORY_USER')
-        DOCKER_PASSWORD = credentials('ARTIFACTORY_TOKEN')
+        ARTIFACTORY_TOKEN = credentials('ARTIFACTORY_TOKEN')
         REDHAT_USERNAME = credentials('REDHAT_USERNAME')
         REDHAT_PASSWORD = credentials('REDHAT_PASSWORD')
         PULL_SECRET = credentials('PULL_SECRET')
-        OS_AUTH_URL=credentials('URL_SCNLPOWERCLOUD')
 
         //IBM Cloud API key is used for uploading must-gather logs to IBM COS
         IBMCLOUD_API_KEY = credentials('IBM_PCLOUD_QE_API_KEY')
@@ -45,10 +43,9 @@ pipeline {
 
         //Env constants
         HARDWARE_CHOSE = "P9"
-        AVAILABILITY_ZONE = "workload"
         TARGET = "deploy-openshift4-powervc"
         TEMPLATE_FILE = ".${TARGET}.tfvars.template"
-        TERRAFORM_VER = "1.2.0"
+        TERRAFORM_VER = "1.8.4"
         POWERVS = false
         SCRIPT_DEPLOYMENT = false
         WAIT_FOR_DEBUG = "0"
@@ -68,32 +65,34 @@ pipeline {
                 setupCommonEnvironmentVariables()
                 setupClusterConfig("${CONFIG_TYPE}")
                 script {
-                    wrap([$class: 'BuildUser']) {
-                        env.INSTANCE_NAME = "rdr-zscurst-p9"
-                    }
+                    env.INSTANCE_NAME = "rdr-zscurst-p9"
                     env.BASTION_VCPUS = "1"
                     env.BOOTSTRAP_VCPUS = "1"
                     env.BOOTSTRAP_MEMORY = "8"
-                    env.OS_TENANT_NAME="icp-test"
-                    env.OS_NETWORK = "workload"
-                    env.OS_PRIVATE_NETWORK = "workload"
-                    env.SCG_ID = "4366c1e2-bb4f-4c3d-98a2-06cc39bbc58d"
                     env.MOUNT_ETCD_RAMDISK = "false"
                     env.UPGRADE_DELAY_TIME = "600"
                     env.UPGRADE_PAUSE_TIME = "90"
                     env.SETUP_SQUID_PROXY = "true"
                     
-                    if (env.OCP_RELEASE == "4.11"){
-                        env.REDHAT_RELEASE = "8.5"
-                        env.GOLANG_TARBALL = "https://dl.google.com/go/go1.17.6.linux-ppc64le.tar.gz"
+                    if (env.OCP_RELEASE == "4.12") {
+                        env.REDHAT_RELEASE = "9.2"
+                        env.GOLANG_TARBALL = "https://golang.org/dl/go1.18.6.linux-ppc64le.tar.gz"
                     }
-                    else if (env.OCP_RELEASE == "4.12"){
-                        env.REDHAT_RELEASE = "8.6"
-                        env.GOLANG_TARBALL = "https://dl.google.com/go/go1.18.6.linux-ppc64le.tar.gz"
+                    else if (env.OCP_RELEASE == "4.13"){
+                        env.REDHAT_RELEASE = "9.2"
+                        env.GOLANG_TARBALL = "https://golang.org/dl/go1.19.linux-ppc64le.tar.gz"
+                    }
+                    else if (env.OCP_RELEASE == "4.14") {
+                        env.REDHAT_RELEASE = "9.2"
+                        env.GOLANG_TARBALL = "https://golang.org/dl/go1.20.linux-ppc64le.tar.gz"
+                    }
+                    else if (env.OCP_RELEASE == "4.15") {
+                        env.REDHAT_RELEASE = "9.3"
+                        env.GOLANG_TARBALL = "https://golang.org/dl/go1.22.0.linux-ppc64le.tar.gz"
                     }
                     else {
-                        env.REDHAT_RELEASE = "9.2"
-                        env.GOLANG_TARBALL = "https://golang.org/dl/go1.20.8.linux-ppc64le.tar.gz"
+                        env.REDHAT_RELEASE = "9.4"
+                        env.GOLANG_TARBALL = "https://golang.org/dl/go1.22.0.linux-ppc64le.tar.gz"
                     }
                 }
             }
@@ -101,8 +100,8 @@ pipeline {
         stage('pull artifact') {
             steps {
                 script {
-                    getArtifacts("powervm/poll-powervc-images", "rhcos-${OCP_RELEASE}-powercloud-latest.txt")
-                    getArtifacts("powervm/poll-powervc-images", "rhel-${REDHAT_RELEASE}-powercloud-latest.txt")
+                    getArtifacts("powervm/poll-powervc-images", "cicd-rhcos-${OCP_RELEASE}.latest.txt")
+                    getArtifacts("powervm/poll-powervc-images", "cicd-rhel-${REDHAT_RELEASE}.latest.txt")
                 }
             }
         }
@@ -120,14 +119,15 @@ pipeline {
                         env.OPENSHIFT_IMAGE = ""
                         if (env.CURRENT_BUILD?.trim()) {
                             if (!env.CURRENT_BUILD.contains('quay')) {
-                                env.OPENSHIFT_IMAGE  = "sys-powercloud-docker-local.artifactory.swg-devops.com/ocp-ppc64le/release-ppc64le:${env.CURRENT_BUILD}"
+                                env.OPENSHIFT_IMAGE  = "docker-na.artifactory.swg-devops.com/sys-powercloud-docker-local/ocp-ppc64le/release-ppc64le:${env.CURRENT_BUILD}"
                                 sh '''
-                                    nerdctl login sys-powercloud-docker-local.artifactory.swg-devops.com -u ${DOCKER_USER} -p ${DOCKER_PASSWORD}
+                                    nerdctl login -u ${ARTIFACTORY_USER} -p ${ARTIFACTORY_TOKEN} docker-na.artifactory.swg-devops.com/sys-powercloud-docker-local
                                     nerdctl pull ${OPENSHIFT_IMAGE}
                                     if [ $? -ne 0 ]; then
                                         echo "${OPENSHIFT_IMAGE} not found"
                                         exit 1
                                     fi
+                                    nerdctl rmi ${OPENSHIFT_IMAGE}
                                 '''
                             }
                             else {
@@ -141,14 +141,15 @@ pipeline {
                         env.UPGRADE_IMAGE = ""
                         if (env.UPGRADE_BUILD?.trim()) {
                             if (!env.UPGRADE_BUILD.contains('quay')) {
-                                env.UPGRADE_IMAGE  = "sys-powercloud-docker-local.artifactory.swg-devops.com/ocp-ppc64le/release-ppc64le:${env.UPGRADE_BUILD}"
+                                env.UPGRADE_IMAGE  = "docker-na.artifactory.swg-devops.com/sys-powercloud-docker-local/ocp-ppc64le/release-ppc64le:${env.UPGRADE_BUILD}"
                                 sh '''
-                                    nerdctl login sys-powercloud-docker-local.artifactory.swg-devops.com -u ${DOCKER_USER} -p ${DOCKER_PASSWORD}
+                                    nerdctl login -u ${ARTIFACTORY_USER} -p ${ARTIFACTORY_TOKEN} docker-na.artifactory.swg-devops.com/sys-powercloud-docker-local
                                     nerdctl pull ${UPGRADE_IMAGE}
                                     if [ $? -ne 0 ]; then
                                         echo "${UPGRADE_IMAGE} not found"
                                         exit 1
                                     fi
+                                    nerdctl rmi ${UPGRADE_IMAGE}
                                 '''
                             }
                             else {
@@ -159,22 +160,22 @@ pipeline {
                             echo "Upgrade build is empty"
                             throw err
                         }
-                        if (fileExists("deploy/artifactory/rhcos-${OCP_RELEASE}-powercloud-latest.txt")) {
-                            env.RHCOS_IMAGE = readFile "deploy/artifactory/rhcos-${OCP_RELEASE}-powercloud-latest.txt"
+                        if (fileExists("deploy/artifactory/cicd-rhcos-${OCP_RELEASE}.latest.txt")) {
+                            env.RHCOS_IMAGE = readFile "deploy/artifactory/cicd-rhcos-${OCP_RELEASE}.latest.txt"
                             env.RHCOS_IMAGE_NAME = env.RHCOS_IMAGE.split()[0].trim()
                             env.RHCOS_IMAGE_ID = env.RHCOS_IMAGE.split()[1].trim()
                         }
                         else {
-                            echo "rhcos-${OCP_RELEASE}-powercloud-latest.txt file does not exist. Please check poll-powervc-images job"
+                            echo "cicd-rhcos-${OCP_RELEASE}.latest.txt file does not exist. Please check poll-powervc-images job"
                             throw err
                         }
-                        if (fileExists("deploy/artifactory/rhel-${REDHAT_RELEASE}-powercloud-latest.txt")) {
-                            env.BASTION_IMAGE = readFile "deploy/artifactory/rhel-${REDHAT_RELEASE}-powercloud-latest.txt"
+                        if (fileExists("deploy/artifactory/cicd-rhel-${REDHAT_RELEASE}.latest.txt")) {
+                            env.BASTION_IMAGE = readFile "deploy/artifactory/cicd-rhel-${REDHAT_RELEASE}.latest.txt"
                             env.BASTION_IMAGE_NAME = env.BASTION_IMAGE.split()[0].trim()
                             env.BASTION_IMAGE_ID = env.BASTION_IMAGE.split()[1].trim()
                         }
                         else {
-                            echo "rhel-${REDHAT_RELEASE}-powercloud-latest.txt file does not exist. Please check poll-powervc-images job"
+                            echo "cicd-rhel-${REDHAT_RELEASE}.latest.txt file does not exist. Please check poll-powervc-images job"
                             throw err
                         }
                         if (env.DEPLOY_MASTER == "false")
@@ -225,7 +226,7 @@ pipeline {
         stage('Setup and run ansible extra') {
             steps {
                setupAndRunE2e()
-               notifyBySlack(currentBuild.result, "E2E has completed !!")
+               notifyBySlack(currentBuild.result, "OCP BUILD: `${OPENSHIFT_IMAGE} to ${UPGRADE_IMAGE}` E2E has completed !!")
             }
         }
         stage('Gather pprof and prometheus data') {
