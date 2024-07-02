@@ -30,12 +30,12 @@ pipeline {
         OCP_RELEASE="4.15"
         TARGET = "deploy-openshift4-powervc"
         TEMPLATE_FILE = ".${TARGET}-abi.tfvars.template"
-        AI_INSTALL_TYPE = "agent"
+        AI_INSTALL_TYPE = "assisted"
         OPENSHIFT_POWERVC_AI_SUBDIR = "tf-powervc"
         POWERVS = false
         SCRIPT_DEPLOYMENT = false
         WAIT_FOR_DEBUG = "1"
-        REDHAT_RELEASE = "9.4"
+        REDHAT_RELEASE = "9.3"
 
         //Branch
         OPENSHIFT_POWERVC_GIT_TF_DEPLOY_PROJECT="https://github.com/ocp-power-automation/ocp4-ai-power.git"
@@ -113,6 +113,8 @@ pipeline {
                             env.BASTION_IMAGE = readFile "deploy/artifactory/cicd-rhel-${REDHAT_RELEASE}.latest.txt"
                             env.BASTION_IMAGE_NAME = env.BASTION_IMAGE.split()[0].trim()
                             env.BASTION_IMAGE_ID = env.BASTION_IMAGE.split()[1].trim()
+                            //env.BASTION_IMAGE_NAME = "cicd-centos-9-stream-05152023"
+                            //env.BASTION_IMAGE_ID = "a7286e02-d4bb-48ad-afba-8f0fe15630bc"
                         }
                         else {
                             echo "cicd-rhel-${REDHAT_RELEASE}.latest.txt file does not exist. Please check poll-powervc-images job"
@@ -124,10 +126,10 @@ pipeline {
                             throw err
                         }
 
-                        createTemplate(env.OS_AUTH_URL, env.MASTER_VCPUS , "${MASTER_MEMORY_MB}", env.MASTER_PROCESSORS, env.MASTER_TEMPLATE)
-                        createTemplate(env.OS_AUTH_URL, env.WORKER_VCPUS , "${WORKER_MEMORY_MB}", env.WORKER_PROCESSORS, env.WORKER_TEMPLATE)
-                        createTemplate(env.OS_AUTH_URL, env.BASTION_VCPUS , "${BASTION_MEMORY_MB}", env.BASTION_PROCESSORS, env.BASTION_TEMPLATE)
-                        createTemplate(env.OS_AUTH_URL, env.BOOTSTRAP_VCPUS , "${BOOTSTRAP_MEMORY_MB}", env.BOOTSTRAP_PROCESSORS, env.BOOTSTRAP_TEMPLATE)
+                        //createTemplate(env.OS_AUTH_URL, env.MASTER_VCPUS , "${MASTER_MEMORY_MB}", env.MASTER_PROCESSORS, env.MASTER_TEMPLATE)
+                        //createTemplate(env.OS_AUTH_URL, env.WORKER_VCPUS , "${WORKER_MEMORY_MB}", env.WORKER_PROCESSORS, env.WORKER_TEMPLATE)
+                        //createTemplate(env.OS_AUTH_URL, env.BASTION_VCPUS , "${BASTION_MEMORY_MB}", env.BASTION_PROCESSORS, env.BASTION_TEMPLATE)
+                        //createTemplate(env.OS_AUTH_URL, env.BOOTSTRAP_VCPUS , "${BOOTSTRAP_MEMORY_MB}", env.BOOTSTRAP_PROCESSORS, env.BOOTSTRAP_TEMPLATE)
                     }
                     catch (err)
                     {

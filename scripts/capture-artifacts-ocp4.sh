@@ -20,6 +20,7 @@ else
     sed -i "s|github_username.*=.*$|github_username = ************|g" ${TARGET}.tfvars
     sed -i "s|ibmcloud_api_key.*=.*$|ibmcloud_api_key = ************|g" ${TARGET}.tfvars
     sed -i "s|proxy.*=.*$|proxy = ************|g" ${TARGET}.tfvars
+    sed -i "s|assisted_token.*=.*$|assisted_token = ************|g" ${TARGET}.tfvars
     cp ${TARGET}.tfvars vars.tfvars
     tar -czvf ${WORKSPACE}/deploy/logs.tar.gz ${WORKSPACE}/deploy/.${TARGET}/logs
 fi

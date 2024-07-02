@@ -85,7 +85,7 @@ def call() {
                 sh '''#!/bin/bash
                     cd ${WORKSPACE}/deploy
                     OPENSHIFT_POWERVC_DEPLOY_DIR=".${TARGET}/"
-                    TERRAFORM_VARS_FILE_POWERVC=".${TARGET}.tfvars"
+                    TERRAFORM_VARS_FILE_POWERVC=".${TARGET}-abi.tfvars"
                     BOOT=$(grep '^bootstrap*' $OPENSHIFT_POWERVC_DEPLOY_DIR/$TERRAFORM_VARS_FILE_POWERVC);BOOT2="${BOOT//= 1/ = 0}"; sed -i -e "s|$BOOT|$BOOT2|g" $OPENSHIFT_POWERVC_DEPLOY_DIR/$TERRAFORM_VARS_FILE_POWERVC
                     make $TARGET:redeploy
                 '''
