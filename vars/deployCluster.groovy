@@ -17,6 +17,11 @@ def call() {
                sh '''
                    set -x
                    cd ${WORKSPACE}/deploy
+                   echo "======================"
+                   ls -la
+                   echo "======================"
+                   tree .
+                   echo "======================"
                    make $TARGET || EXIT_STATUS=$?
                    echo $EXIT_STATUS > ${WORKSPACE}/deploy/exit_status
                '''
@@ -51,6 +56,7 @@ def call() {
                         set -x
                         EXIT_STATUS=0
                         cd ${WORKSPACE}/deploy
+                        ls -la
                         make $TARGET:redeploy|| EXIT_STATUS=$?
                         echo $EXIT_STATUS > ${WORKSPACE}/deploy/exit_status
                         '''
@@ -84,12 +90,19 @@ def call() {
             else {
                 sh '''#!/bin/bash
                     cd ${WORKSPACE}/deploy
-                    OPENSHIFT_POWERVC_DEPLOY_DIR=".${TARGET}/"
-                    TERRAFORM_VARS_FILE_POWERVC=".${TARGET}.tfvars"
-                    BOOT=$(grep '^bootstrap*' $OPENSHIFT_POWERVC_DEPLOY_DIR/$TERRAFORM_VARS_FILE_POWERVC);BOOT2="${BOOT//= 1/ = 0}"; sed -i -e "s|$BOOT|$BOOT2|g" $OPENSHIFT_POWERVC_DEPLOY_DIR/$TERRAFORM_VARS_FILE_POWERVC
+                    ls -la
+                    echo "OPENSHIFT_POWERVC_DEPLOY_DIR: ${OPENSHIFT_POWERVC_DEPLOY_DIR}"
+                    echo "TERRAFORM_VARS_FILE_POWERVC: ${TERRAFORM_VARS_FILE_POWERVC}"
+                    OPENSHIFT_POWERVC_DEPLOY_DIR=".${TARGET}/tf-powervc"
+                    TERRAFORM_VARS_FILE_POWERVC=".${TARGET}-abi.tfvars"
+                    echo "OPENSHIFT_POWERVC_DEPLOY_DIR: ${OPENSHIFT_POWERVC_DEPLOY_DIR}"
+                    echo "TERRAFORM_VARS_FILE_POWERVC: ${TERRAFORM_VARS_FILE_POWERVC}"
+                    BOOT=$(grep '^bootstrap*' $OPENSHIFT_POWERVC_DEPLOY_DIR/$TERRAFORM_VARS_FILE_POWERVC || true )
+                    BOOT2="${BOOT//= 1/ = 0}"
+                    sed -i -e "s|$BOOT|$BOOT2|g" $OPENSHIFT_POWERVC_DEPLOY_DIR/$TERRAFORM_VARS_FILE_POWERVC || true
                     make $TARGET:redeploy
                 '''
-                env.BASTION_IP=sh(returnStdout: true, script: "cd ${WORKSPACE}/deploy && make terraform:output TERRAFORM_DIR=.${TARGET} TERRAFORM_OUTPUT_VAR=bastion_ip | grep -Eo '[0-9]{1,3}(\\.[0-9]{1,3}){3}'").trim()
+                env.BASTION_IP=sh(returnStdout: true, script: "cd ${WORKSPACE}/deploy && make terraform:output TERRAFORM_DIR=.${TARGET}/tf-powervc TERRAFORM_OUTPUT_VAR=bastion_ip | grep -Eo '[0-9]{1,3}(\\.[0-9]{1,3}){3}'").trim()
             }
             env.DEPLOYMENT_STATUS = true
         }
