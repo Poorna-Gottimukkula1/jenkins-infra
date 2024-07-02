@@ -1,4 +1,4 @@
-@Library('jenkins-upstream-library') _
+@Library('jenkins-upstream-library1@abi-powervc') _
 
 pipeline {
     agent {
@@ -19,28 +19,32 @@ pipeline {
         ARTIFACTORY_TOKEN = credentials('ARTIFACTORY_TOKEN')
         REDHAT_USERNAME = credentials('REDHAT_USERNAME')
         REDHAT_PASSWORD = credentials('REDHAT_PASSWORD')
-        PULL_SECRET = credentials('PULL_SECRET')
+        PULL_SECRET = credentials('AI_PULL_SECRET')
+        AI_TOKEN = credentials('AI_TOKEN')
 
 
         //Env constants
         HARDWARE_CHOSE = "P9"
-        TERRAFORM_VER = "1.8.4"
+        TERRAFORM_VER = "1.9.1"
 
-        OCP_RELEASE="4.16"
+        OCP_RELEASE="4.17"
         TARGET = "deploy-openshift4-powervc"
-        TEMPLATE_FILE = ".${TARGET}.tfvars.template"
+        TEMPLATE_FILE = ".${TARGET}-abi.tfvars.template"
+        AI_INSTALL_TYPE = "assisted"
+        OPENSHIFT_POWERVC_AI_SUBDIR = "tf-powervc"
         POWERVS = false
         SCRIPT_DEPLOYMENT = false
         WAIT_FOR_DEBUG = "1"
         REDHAT_RELEASE = "9.4"
 
         //Branch
+        OPENSHIFT_POWERVC_GIT_TF_DEPLOY_PROJECT="https://github.com/ocp-power-automation/ocp4-ai-power.git"
         OPENSHIFT_POWERVC_GIT_TF_DEPLOY_BRANCH="main"//The download branch
 
         //E2e and Scale specific variables
         ENABLE_E2E_TEST="true"
         ENABLE_SCALE_TEST="false"
-        GOLANG_TARBALL="https://dl.google.com/go/go1.22.0.linux-ppc64le.tar.gz"
+        GOLANG_TARBALL="https://dl.google.com/go/go1.22.4.linux-ppc64le.tar.gz"
 
         // Type of configuration
         CONFIG_TYPE="min"
@@ -62,6 +66,15 @@ pipeline {
             steps {
                 setupCommonEnvironmentVariables()
                 setupClusterConfig("${CONFIG_TYPE}")
+                script {
+                    //env.CLUSTER_DOMAIN = "ocp.qe"
+                    env.DNS_FORWARDERS = "10.0.10.5"
+                    env.NUM_OF_WORKERS = "2"
+                    env.NUM_OF_MASTERS = "3"
+                    env.OPENSHIFT_INSTALL_TARBALL="https://mirror.openshift.com/pub/openshift-v4/ppc64le/clients/ocp-dev-preview/candidate-4.16/openshift-install-linux.tar.gz"
+                    env.OPENSHIFT_CLIENT_TARBALL="https://mirror.openshift.com/pub/openshift-v4/ppc64le/clients/ocp-dev-preview/candidate-4.16/openshift-client-linux.tar.gz"
+                    env.OPENSHIFT_CLIENT_TARBALL_AMD64="https://mirror.openshift.com/pub/openshift-v4/amd64/clients/ocp-dev-preview/candidate-4.16/openshift-client-linux.tar.gz"
+                }
             }
         }
         stage('pull artifact') {
@@ -96,8 +109,10 @@ pipeline {
                         }
                         if (fileExists("deploy/artifactory/cicd-rhcos-${OCP_RELEASE}.latest.txt")) {
                             env.RHCOS_IMAGE = readFile "deploy/artifactory/cicd-rhcos-${OCP_RELEASE}.latest.txt"
-                            env.RHCOS_IMAGE_NAME = env.RHCOS_IMAGE.split()[0].trim()
-                            env.RHCOS_IMAGE_ID = env.RHCOS_IMAGE.split()[1].trim()
+                            //env.RHCOS_IMAGE_NAME = env.RHCOS_IMAGE.split()[0].trim()
+                             //env.RHCOS_IMAGE_ID = env.RHCOS_IMAGE.split()[1].trim()
+                            env.RHCOS_IMAGE_NAME = "empty-image"
+                            env.RHCOS_IMAGE_ID = "0aca7a7a-f1b2-4a5e-9c8b-0273ac1e7b2a"
                         }
                         else {
                             echo "cicd-rhcos-${OCP_RELEASE}.latest.txt file does not exist. Please check poll-powervc-images job"
@@ -107,6 +122,8 @@ pipeline {
                             env.BASTION_IMAGE = readFile "deploy/artifactory/cicd-rhel-${REDHAT_RELEASE}.latest.txt"
                             env.BASTION_IMAGE_NAME = env.BASTION_IMAGE.split()[0].trim()
                             env.BASTION_IMAGE_ID = env.BASTION_IMAGE.split()[1].trim()
+                            //env.BASTION_IMAGE_NAME = "cicd-centos-9-stream-05152023"
+                            //env.BASTION_IMAGE_ID = "a7286e02-d4bb-48ad-afba-8f0fe15630bc"
                         }
                         else {
                             echo "cicd-rhel-${REDHAT_RELEASE}.latest.txt file does not exist. Please check poll-powervc-images job"
@@ -118,10 +135,10 @@ pipeline {
                             throw err
                         }
 
-                        createTemplate(env.OS_AUTH_URL, env.MASTER_VCPUS , "${MASTER_MEMORY_MB}", env.MASTER_PROCESSORS, env.MASTER_TEMPLATE)
-                        createTemplate(env.OS_AUTH_URL, env.WORKER_VCPUS , "${WORKER_MEMORY_MB}", env.WORKER_PROCESSORS, env.WORKER_TEMPLATE)
-                        createTemplate(env.OS_AUTH_URL, env.BASTION_VCPUS , "${BASTION_MEMORY_MB}", env.BASTION_PROCESSORS, env.BASTION_TEMPLATE)
-                        createTemplate(env.OS_AUTH_URL, env.BOOTSTRAP_VCPUS , "${BOOTSTRAP_MEMORY_MB}", env.BOOTSTRAP_PROCESSORS, env.BOOTSTRAP_TEMPLATE)
+                        //createTemplate(env.OS_AUTH_URL, env.MASTER_VCPUS , "${MASTER_MEMORY_MB}", env.MASTER_PROCESSORS, env.MASTER_TEMPLATE)
+                        //createTemplate(env.OS_AUTH_URL, env.WORKER_VCPUS , "${WORKER_MEMORY_MB}", env.WORKER_PROCESSORS, env.WORKER_TEMPLATE)
+                        //createTemplate(env.OS_AUTH_URL, env.BASTION_VCPUS , "${BASTION_MEMORY_MB}", env.BASTION_PROCESSORS, env.BASTION_TEMPLATE)
+                        //createTemplate(env.OS_AUTH_URL, env.BOOTSTRAP_VCPUS , "${BOOTSTRAP_MEMORY_MB}", env.BOOTSTRAP_PROCESSORS, env.BOOTSTRAP_TEMPLATE)
                     }
                     catch (err)
                     {
@@ -192,7 +209,7 @@ pipeline {
                     env.MESSAGE+=", Found Kdump Crash logs :e2e-unstable:"
                 }
             }
-            notifyBySlack(currentBuild.result, env.MESSAGE)
+            //notifyBySlack(currentBuild.result, env.MESSAGE)
             cleanWs()
         }
     }

@@ -2,29 +2,38 @@ OPENSHIFT_POWERVC_GIT_TF_DEPLOY_PROJECT ?= "https://github.com/ocp-power-automat
 OPENSHIFT_POWERVC_GIT_TF_DEPLOY_BRANCH ?= master
 OPENSHIFT_POWERVC_DEPLOY_DIR ?= .deploy-openshift4-powervc/
 OPENSHIFT_POWERVC_TERRAFORM_VARS_FILE ?= .deploy-openshift4-powervc.tfvars
+OPENSHIFT_POWERVC_AI_SUBDIR ?= 
+
+# Determine the Terraform directory based on OPENSHIFT_POWERVC_AI_SUBDIR variable
+ifeq ($(OPENSHIFT_POWERVC_AI_SUBDIR),)
+    ACTUAL_TF_DIR := $(OPENSHIFT_POWERVC_DEPLOY_DIR)
+else
+    ACTUAL_TF_DIR := $(OPENSHIFT_POWERVC_DEPLOY_DIR)/$(OPENSHIFT_POWERVC_AI_SUBDIR)
+endif
 
 .PHONY: deploy\:openshift4\:powervc
 ## Deploy openshift4 on powervc
 deploy\:openshift4\:powervc:
 	@$(GIT) clone -b $(OPENSHIFT_POWERVC_GIT_TF_DEPLOY_BRANCH) $(OPENSHIFT_POWERVC_GIT_TF_DEPLOY_PROJECT) $(OPENSHIFT_POWERVC_DEPLOY_DIR)
-	@$(shell) cp data/pull-secret.txt $(OPENSHIFT_POWERVC_DEPLOY_DIR)/ && cp id_rsa* $(OPENSHIFT_POWERVC_DEPLOY_DIR)/ &&  cp $(OPENSHIFT_POWERVC_TERRAFORM_VARS_FILE) $(OPENSHIFT_POWERVC_DEPLOY_DIR)/
-	@$(SELF) terraform:init TERRAFORM_DIR=$(OPENSHIFT_POWERVC_DEPLOY_DIR)
-	@$(SELF) terraform:apply TERRAFORM_VARS_FILE=$(OPENSHIFT_POWERVC_TERRAFORM_VARS_FILE) TERRAFORM_DIR=$(OPENSHIFT_POWERVC_DEPLOY_DIR)
+	$(shell) cp data/pull-secret.txt $(ACTUAL_TF_DIR)/ && cp id_rsa* $(ACTUAL_TF_DIR)/ && cp $(OPENSHIFT_POWERVC_TERRAFORM_VARS_FILE) $(ACTUAL_TF_DIR)/
+	echo $(ACTUAL_TF_DIR)
+	@$(SELF) terraform:init TERRAFORM_DIR=$(ACTUAL_TF_DIR)
+	@$(SELF) terraform:apply TERRAFORM_VARS_FILE=$(OPENSHIFT_POWERVC_TERRAFORM_VARS_FILE) TERRAFORM_DIR=$(ACTUAL_TF_DIR)
 
 .PHONY: deploy\:openshift4\:powervc\:redeploy
 ## RedoDeploy openshift4 on powervc
 deploy\:openshift4\:powervc\:redeploy: %redeploy:
-	@$(SELF) terraform:apply TERRAFORM_VARS_FILE=$(OPENSHIFT_POWERVC_TERRAFORM_VARS_FILE) TERRAFORM_DIR=$(OPENSHIFT_POWERVC_DEPLOY_DIR)
+	@$(SELF) terraform:apply TERRAFORM_VARS_FILE=$(OPENSHIFT_POWERVC_TERRAFORM_VARS_FILE) TERRAFORM_DIR=$(ACTUAL_TF_DIR)
 
 .PHONY: deploy\:openshift4\:powervc\:destroy
 ## Destroy openshift4 on powervc deployment resources
 deploy\:openshift4\:powervc\:destroy: %destroy:
-	@$(SELF) terraform:destroy TERRAFORM_VARS_FILE=$(OPENSHIFT_POWERVC_TERRAFORM_VARS_FILE) TERRAFORM_DIR=$(OPENSHIFT_POWERVC_DEPLOY_DIR)
+	@$(SELF) terraform:destroy TERRAFORM_VARS_FILE=$(OPENSHIFT_POWERVC_TERRAFORM_VARS_FILE) TERRAFORM_DIR=$(ACTUAL_TF_DIR)
 
 .PHONY: deploy\:openshift4\:powervc\:output
 ## output openshift4 on powervc deployment resources
 deploy\:openshift4\:powervc\:output: %output:
-	@$(SELF) terraform:output TERRAFORM_DIR=$(OPENSHIFT_POWERVC_DEPLOY_DIR) TERRAFORM_OUTPUT_VAR=$(TERRAFORM_OUTPUT_VAR)
+	@$(SELF) terraform:output TERRAFORM_DIR=$(ACTUAL_TF_DIR) TERRAFORM_OUTPUT_VAR=$(TERRAFORM_OUTPUT_VAR)
 
 .PHONY: deploy\:openshift4\:powervc\:clean
 ## Clean up all openshift4 on powervc deployment resources

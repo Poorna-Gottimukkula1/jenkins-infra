@@ -87,8 +87,8 @@ def call() {
                 env.OPENSHIFT_CLIENT_TARBALL_AMD64="https://mirror.openshift.com/pub/openshift-v4/amd64/clients/ocp-dev-preview/candidate-4.17/openshift-client-linux.tar.gz"
             }
             else {
-                env.OPENSHIFT_INSTALL_TARBALL="https://mirror.openshift.com/pub/openshift-v4/ppc64le/clients/ocp/latest-${OCP_RELEASE}/openshift-install-linux.tar.gz"
-                env.OPENSHIFT_CLIENT_TARBALL="https://mirror.openshift.com/pub/openshift-v4/ppc64le/clients/ocp/latest-${OCP_RELEASE}/openshift-client-linux.tar.gz"
+                env.OPENSHIFT_INSTALL_TARBALL="https://mirror.openshift.com/pub/openshift-v4/multi/clients/ocp/latest-${OCP_RELEASE}/ppc64le/openshift-install-linux.tar.gz"
+                env.OPENSHIFT_CLIENT_TARBALL="https://mirror.openshift.com/pub/openshift-v4/multi/clients/ocp/latest-${OCP_RELEASE}/ppc64le/openshift-client-linux.tar.gz"
                 env.OPENSHIFT_CLIENT_TARBALL_AMD64="https://mirror.openshift.com/pub/openshift-v4/clients/ocp/latest-${OCP_RELEASE}/openshift-client-linux.tar.gz"
             }
         }
@@ -221,8 +221,8 @@ def call() {
             env.BOOTSTRAP_MEMORY_MB=''
             //Need to use latest build when 4.15 releases
             if (env.OCP_RELEASE == "4.17") {
-                env.OPENSHIFT_INSTALL_TARBALL="https://mirror.openshift.com/pub/openshift-v4/ppc64le/clients/ocp-dev-preview/candidate-4.17/openshift-install-linux.tar.gz"
-                env.OPENSHIFT_CLIENT_TARBALL="https://mirror.openshift.com/pub/openshift-v4/ppc64le/clients/ocp-dev-preview/candidate-4.17/openshift-client-linux.tar.gz"
+                env.OPENSHIFT_INSTALL_TARBALL="https://mirror.openshift.com/pub/openshift-v4/multi/clients/ocp-dev-preview/candidate-4.17/ppc64le/openshift-install-linux.tar.gz"
+                env.OPENSHIFT_CLIENT_TARBALL="https://mirror.openshift.com/pub/openshift-v4/multi/clients/ocp-dev-preview/candidate-4.17/ppc64le/openshift-client-linux.tar.gz"
                 env.OPENSHIFT_CLIENT_TARBALL_AMD64="https://mirror.openshift.com/pub/openshift-v4/amd64/clients/ocp-dev-preview/candidate-4.17/openshift-client-linux.tar.gz"
             }
             else {

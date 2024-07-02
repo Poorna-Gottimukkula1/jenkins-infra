@@ -6,11 +6,11 @@ else
     exit 1
 fi
 # Capturing Terraform template
-if [ ! -f ${WORKSPACE}/deploy/.${TARGET}.tfvars ]; then
+if [ ! -f ${WORKSPACE}/deploy/.${TARGET}-abi.tfvars ]; then
     echo "${WORKSPACE}/deploy/.${TARGET}.tfvars not found!"
     exit 1
 else
-    cp ${WORKSPACE}/deploy/.${TARGET}.tfvars ${TARGET}.tfvars
+    cp ${WORKSPACE}/deploy/.${TARGET}-abi.tfvars ${TARGET}.tfvars
     sed -i "s|password.*=.*$|password = ************|g" ${TARGET}.tfvars
     sed -i "s|user_name.*=.*$|user_name = ************|g" ${TARGET}.tfvars
     sed -i "s|auth_url.*=.*$|auth_url = ************|g" ${TARGET}.tfvars
@@ -20,8 +20,9 @@ else
     sed -i "s|github_username.*=.*$|github_username = ************|g" ${TARGET}.tfvars
     sed -i "s|ibmcloud_api_key.*=.*$|ibmcloud_api_key = ************|g" ${TARGET}.tfvars
     sed -i "s|proxy.*=.*$|proxy = ************|g" ${TARGET}.tfvars
+    sed -i "s|assisted_token.*=.*$|assisted_token = ************|g" ${TARGET}.tfvars
     cp ${TARGET}.tfvars vars.tfvars
-    tar -czvf ${WORKSPACE}/deploy/logs.tar.gz ${WORKSPACE}/deploy/.${TARGET}/logs
+    tar -czvf ${WORKSPACE}/deploy/logs.tar.gz ${WORKSPACE}/deploy/.${TARGET}/tf-powervc/logs
 fi
 if [ ! -z "${BASTION_IP}" ]; then
     ssh -q -i id_rsa -o StrictHostKeyChecking=no root@${BASTION_IP} exit
