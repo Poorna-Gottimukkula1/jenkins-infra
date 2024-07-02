@@ -1,0 +1,282 @@
+@Library('jenkins-upstream-library') _
+def failedStages = []
+pipeline {
+    agent {
+        docker {
+            image 'quay.io/powercloud/inbound-agent:3107.v665000b_51092-14-jdk17.2'
+            args '-v /etc/resolv.conf:/etc/resolv.conf -v /run/containerd/containerd.sock:/run/containerd/containerd.sock'
+            label 'jump-vpc-x86_64'
+        }
+    }
+    parameters {
+        string(defaultValue: '', description: 'Build(quay image or build number)', name: 'Build')
+        string(defaultValue: '30', description: 'Enter time(in Minutes) to retain the cluster', name: 'KeepFor')
+        string(defaultValue: '1.22.1', description: 'Enter the Go Language Version', name: 'GoLangVersion')
+        choice(description: 'Select the OpenShift Release', choices: ['4.16','4.15','4.14','4.13','4.12'], name: 'Release')
+        choice(description: 'Select the RedHat Release Version', choices: ['9.4','9.3','9.2','9.1','9.0', '8.8','8.7'], name: 'RedHatRelease')
+        choice(description: 'Select the Configuration', choices: ['min','max'], name: 'Config')
+        booleanParam(defaultValue: true, name: 'RunCroE2e', description: 'Select if you want to run CRO e2e tests. E2e runs after cluster Deployed')
+        booleanParam(defaultValue: true, name: 'RunMetallbE2e', description: 'Select if you want to run Metallb e2e tests. E2e runs after cluster Deployed')
+    } 
+    environment {
+        //users and credentials. All must be defined in Jenkins Credentials
+        GITHUB_USER = credentials('PUBLIC_GITHUB_USER') 
+        GITHUB_TOKEN = credentials('PUBLIC_GITHUB_TOKEN')
+        OS_USERNAME = credentials('OS_USERNAME')
+        OS_PASSWORD = credentials('OS_PASSWORD')
+        ARTIFACTORY_USER = credentials('ARTIFACTORY_USER')
+        ARTIFACTORY_TOKEN = credentials('ARTIFACTORY_TOKEN')
+        REDHAT_USERNAME = credentials('REDHAT_USERNAME')
+        REDHAT_PASSWORD = credentials('REDHAT_PASSWORD')
+        PULL_SECRET = credentials('PULL_SECRET')
+        AI_TOKEN = credentials('AI_TOKEN')
+
+        //Env constants
+        HARDWARE_CHOSE = "P9"
+        TERRAFORM_VER = "1.8.4"
+        TARGET = "deploy-openshift4-powervc-abi"
+        TEMPLATE_FILE = ".${TARGET}.tfvars.template"
+        OPENSHIFT_POWERVC_AI_SUBDIR = "tf-powervc"
+        POWERVS = false
+        SCRIPT_DEPLOYMENT = false
+        WAIT_FOR_DEBUG = "1"
+
+        //Branch
+        OPENSHIFT_POWERVC_GIT_TF_DEPLOY_PROJECT="https://github.com/ocp-power-automation/ocp4-ai-power.git"
+        OPENSHIFT_POWERVC_GIT_TF_DEPLOY_BRANCH="main"//The download branch
+
+        //E2e specific variables
+        GOLANG_VERSION="${params.GoLangVersion}"
+        GOLANG_TARBALL="https://go.dev/dl/go${GOLANG_VERSION}.linux-ppc64le.tar.gz"
+        //ClusterResourceOverride operator E2e
+        ENABLE_CRO_E2E_TEST="${params.RunCroE2e}"
+        //Metallb operator E2e
+        ENABLE_METALLB_E2E_TEST="${params.RunMetallbE2e}"
+        //Ip address for metallb Operators E2E
+        L2_ADDRESS1="10.20.182.101"
+        L2_ADDRESS2="10.20.182.102"
+        BGB_ADDRESS1="10.20.182.103"
+
+        //Parameters
+        REDHAT_RELEASE="${params.RedHatRelease}"
+        OCP_RELEASE="${params.Release}"
+        CONFIG_TYPE="${params.Config}"
+        BUILD="${params.Build}"
+        TIMEOUT = "${params.KeepFor}"
+
+        // kdump Configuration
+        KDUMP_ENABLE="false"
+    }
+    stages {
+        stage('Clone ansible extra') {
+            steps {
+                cloneRepo("https://github.com/ocp-power-automation/ocp4-playbooks-extras", "ocp4-playbooks-extras", "*/main")
+            }
+        }
+        stage('Setup Common Environment Variables') {
+            steps {
+                setupCommonEnvironmentVariables()
+                setupClusterConfig("${CONFIG_TYPE}")
+            }
+        }
+        stage('pull artifact') {
+            steps {
+                script {
+                    getArtifacts("mirror-openshift-release", "latest-${OCP_RELEASE}-build.txt")
+                    getArtifacts("powervm/poll-powervc-images", "cicd-rhcos-${OCP_RELEASE}.latest.txt")
+                    getArtifacts("powervm/poll-powervc-images", "cicd-rhel-${REDHAT_RELEASE}.latest.txt")
+                }
+            }
+        }
+        //Checkout the installer git repo
+        stage('Prepare Terraform Template') {
+            steps {
+                script {
+                    ansiColor('xterm') {
+                        echo ""
+                    }
+                    try
+                    {
+                        gbToMb()
+                        pullSecret()
+                        env.OPENSHIFT_IMAGE = ""
+                        if (env.BUILD?.trim()) {
+                            if (!env.BUILD.contains('quay')) {
+                                env.OPENSHIFT_IMAGE  = "docker-na.artifactory.swg-devops.com/sys-powercloud-docker-local/ocp-ppc64le/release-ppc64le:${env.BUILD}"
+                                sh '''
+                                    nerdctl login -u ${ARTIFACTORY_USER} -p ${ARTIFACTORY_TOKEN} docker-na.artifactory.swg-devops.com/sys-powercloud-docker-local
+                                    nerdctl pull ${OPENSHIFT_IMAGE}
+                                    if [ $? -ne 0 ]; then
+                                        echo "${OPENSHIFT_IMAGE}  not found"
+                                        exit 1
+                                    fi
+                                    nerdctl rmi ${OPENSHIFT_IMAGE}
+                                '''
+                            }
+                            else {
+                               env.OPENSHIFT_IMAGE=env.BUILD
+                            }
+                        }
+                        else if ( currentBuild.getBuildCauses('hudson.triggers.TimerTrigger$TimerTriggerCause') ){
+                            // When its cron job
+                            if (fileExists("deploy/artifactory/latest-${OCP_RELEASE}-build.txt")) {
+                                env.OPENSHIFT_IMAGE = readFile "deploy/artifactory/latest-${OCP_RELEASE}-build.txt"
+                                env.OPENSHIFT_IMAGE = env.OPENSHIFT_IMAGE.trim()
+                                env.OCP_RELEASE_TAG = env.OPENSHIFT_IMAGE.split(":")[1].trim()
+                                env.BUILD = env.OCP_RELEASE_TAG
+                            }
+                            else {
+                                echo "latest-${OCP_RELEASE}-build.txt file does not exist. Please check mirror-openshift-release job"
+                                throw err
+                            }
+                        } else {
+                            echo "CURRENT build is empty"
+                            throw err
+                        }
+                        if (fileExists("deploy/artifactory/cicd-rhcos-${OCP_RELEASE}.latest.txt")) {
+                            env.RHCOS_IMAGE = readFile "deploy/artifactory/cicd-rhcos-${OCP_RELEASE}.latest.txt"
+                            env.RHCOS_IMAGE_NAME = env.RHCOS_IMAGE.split()[0].trim()
+                            env.RHCOS_IMAGE_ID = env.RHCOS_IMAGE.split()[1].trim()
+                        }
+                        else {
+                            echo "cicd-rhcos-${OCP_RELEASE}.latest.txt file does not exist. Please check poll-powervc-images job"
+                            throw err
+                        }
+                        if (fileExists("deploy/artifactory/cicd-rhel-${REDHAT_RELEASE}.latest.txt")) {
+                            env.BASTION_IMAGE = readFile "deploy/artifactory/cicd-rhel-${REDHAT_RELEASE}.latest.txt"
+                            env.BASTION_IMAGE_NAME = env.BASTION_IMAGE.split()[0].trim()
+                            env.BASTION_IMAGE_ID = env.BASTION_IMAGE.split()[1].trim()
+                        }
+                        else {
+                            echo "cicd-rhel-${REDHAT_RELEASE}.latest.txt file does not exist. Please check poll-powervc-images job"
+                            throw err
+                        }
+                        currentBuild.description = "OCP:${OCP_RELEASE}"
+                        createTemplate(env.OS_AUTH_URL, env.MASTER_VCPUS , "${MASTER_MEMORY_MB}", env.MASTER_PROCESSORS, env.MASTER_TEMPLATE)
+                        createTemplate(env.OS_AUTH_URL, env.WORKER_VCPUS , "${WORKER_MEMORY_MB}", env.WORKER_PROCESSORS, env.WORKER_TEMPLATE)
+                        createTemplate(env.OS_AUTH_URL, env.BASTION_VCPUS , "${BASTION_MEMORY_MB}", env.BASTION_PROCESSORS, env.BASTION_TEMPLATE)
+                        createTemplate(env.OS_AUTH_URL, env.BOOTSTRAP_VCPUS , "${BOOTSTRAP_MEMORY_MB}", env.BOOTSTRAP_PROCESSORS, env.BOOTSTRAP_TEMPLATE)
+                    }
+                    catch (err)
+                    {
+                        echo 'Error ! Template preparation failed !'
+                        env.FAILED_STAGE=env.STAGE_NAME
+                        throw err
+                    }
+                }
+            }
+        }
+        stage('Initialize Environment') {
+            steps {
+                initializeEnvironment()
+            }
+        }
+        stage('Setup Terraform Plugin') {
+            steps {
+                setupTerraformPlugin()
+            }
+        }
+        stage('Deploy OCP Cluster') {
+            steps {
+                deployCluster()
+            }
+        }
+        stage('Run crontab script for capturing outputs of multiple commands') {
+            steps {
+                crontabCommandCaptureScript()
+            }
+        }
+        stage('Setup Kubectl') {
+            steps {
+                setupKubeconfigOcp4()
+            }
+        }
+        stage('Validate CO status') {
+            steps {
+                validateCoStatus()
+            }
+        }
+        // stage('Run E2e Tests') {
+        //     parallel{
+        //         stage('CRO'){
+        //             when { expression { return env.ENABLE_CRO_E2E_TEST == "true"; } }
+        //             steps{
+        //                 script {
+        //                     ansiColor('xterm') {
+        //                     echo ""
+        //                     }
+        //                     try {
+        //                         sh '''
+        //                             cd ${WORKSPACE} && chmod +x ./scripts/operator/cro_o.sh && ./scripts/operator/cro_o.sh
+        //                         '''
+        //                     }
+        //                     catch(err) {
+        //                         echo 'Running CROO script failed!'
+        //                         failedStages.add(env.STAGE_NAME)
+        //                         throw err
+        //                     }
+        //                 }
+        //             }
+        //         }
+        //         stage('Metallb'){
+        //             when { expression { return env.ENABLE_METALLB_E2E_TEST == "true"; } }
+        //             steps{
+        //                 script{
+        //                     ansiColor('xterm') {
+        //                     echo ""
+        //                     }
+        //                     try {
+        //                         sh '''
+        //                             cd ${WORKSPACE} && chmod +x ./scripts/operator/metallbOP.sh && ./scripts/operator/metallbOP.sh
+        //                         '''
+        //                     }
+        //                     catch(err) {
+        //                         echo 'Running Metallb script failed!'
+        //                         failedStages.add(env.STAGE_NAME)
+        //                         throw err
+        //                     }
+        //                 }
+        //             }
+        //         }
+        //     }
+        // }
+        // stage('Waiting to timeout') {
+        //     steps {
+        //         script {
+        //             ansiColor('xterm') {
+        //                 echo ""
+        //             }
+        //             try {
+        //                 TIMEOUT_MIN = TIMEOUT.toInteger()
+        //                 if ( TIMEOUT_MIN != 0 )
+        //                 {
+        //                     TIMEOUT_SEC=TIMEOUT_MIN*60
+        //                 }
+        //                 echo "HOLDING THE CLUSTER TEAR DOWN FOR ${TIMEOUT_MIN} MINUTES"
+        //                 sleep TIMEOUT_SEC
+        //                 }
+        //             catch (err) {
+        //                 echo 'Error ! Timeout stage failed!'
+        //                 env.FAILED_STAGE=env.STAGE_NAME
+        //                 throw err
+        //             }
+        //         }
+        //     }
+        // }
+    }
+    post {
+        always {
+            archiveAllArtifacts("deploy/cro-e2e-test-summary.txt", "deploy/e2e-metallb-repo-logs.txt", "deploy/e2e-metallb-private-logs.txt", "deploy/vars.tfvars")
+            cleanupOcp4Cluster()
+            checkInfraError()
+            script{
+                if ( FAILED_STAGE != "" || !failedStages.isEmpty()  ) {
+                    FAILED_STAGE="${FAILED_STAGE}${failedStages.join(', ')}"
+                    env.MESSAGE = "OCP4 Build: `${BUILD}`, RHCOS: `${env.RHCOS_IMAGE_NAME}`, Failed Stage: `${FAILED_STAGE}`"
+                }
+            }
+            notifyBySlack(currentBuild.result, env.MESSAGE)
+            cleanWs()
+        }
+    }
+}

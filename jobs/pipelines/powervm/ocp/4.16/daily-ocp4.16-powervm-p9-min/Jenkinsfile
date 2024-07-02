@@ -1,4 +1,4 @@
-@Library('jenkins-upstream-library') _
+@Library('jenkins-upstream-library1') _
 
 pipeline {
     agent {
@@ -20,21 +20,25 @@ pipeline {
         REDHAT_USERNAME = credentials('REDHAT_USERNAME')
         REDHAT_PASSWORD = credentials('REDHAT_PASSWORD')
         PULL_SECRET = credentials('PULL_SECRET')
+        AI_TOKEN = credentials('AI_TOKEN')
 
 
         //Env constants
         HARDWARE_CHOSE = "P9"
         TERRAFORM_VER = "1.8.4"
 
-        OCP_RELEASE="4.16"
+        OCP_RELEASE="4.15"
         TARGET = "deploy-openshift4-powervc"
-        TEMPLATE_FILE = ".${TARGET}.tfvars.template"
+        TEMPLATE_FILE = ".${TARGET}-abi.tfvars.template"
+        AI_INSTALL_TYPE = "agent"
+        OPENSHIFT_POWERVC_AI_SUBDIR = "tf-powervc"
         POWERVS = false
         SCRIPT_DEPLOYMENT = false
         WAIT_FOR_DEBUG = "1"
         REDHAT_RELEASE = "9.4"
 
         //Branch
+        OPENSHIFT_POWERVC_GIT_TF_DEPLOY_PROJECT="https://github.com/ocp-power-automation/ocp4-ai-power.git"
         OPENSHIFT_POWERVC_GIT_TF_DEPLOY_BRANCH="main"//The download branch
 
         //E2e and Scale specific variables
@@ -96,8 +100,10 @@ pipeline {
                         }
                         if (fileExists("deploy/artifactory/cicd-rhcos-${OCP_RELEASE}.latest.txt")) {
                             env.RHCOS_IMAGE = readFile "deploy/artifactory/cicd-rhcos-${OCP_RELEASE}.latest.txt"
-                            env.RHCOS_IMAGE_NAME = env.RHCOS_IMAGE.split()[0].trim()
-                            env.RHCOS_IMAGE_ID = env.RHCOS_IMAGE.split()[1].trim()
+                            //env.RHCOS_IMAGE_NAME = env.RHCOS_IMAGE.split()[0].trim()
+                             //env.RHCOS_IMAGE_ID = env.RHCOS_IMAGE.split()[1].trim()
+                            env.RHCOS_IMAGE_NAME = "empty-image"
+                            env.RHCOS_IMAGE_ID = "0aca7a7a-f1b2-4a5e-9c8b-0273ac1e7b2a"
                         }
                         else {
                             echo "cicd-rhcos-${OCP_RELEASE}.latest.txt file does not exist. Please check poll-powervc-images job"
@@ -157,11 +163,11 @@ pipeline {
                 setupKubeconfigOcp4()
             }
         }
-        stage('Setup and run ansible extra') {
-            steps {
-               setupAndRunE2e()
-            }
-        }
+        // stage('Setup and run ansible extra') {
+        //     steps {
+        //        setupAndRunE2e()
+        //     }
+        // }
         stage('Gather pprof and prometheus data') {
             steps {
                 //gatherPrometheusData()
@@ -187,7 +193,7 @@ pipeline {
                     env.MESSAGE+=", Found Kdump Crash logs :e2e-unstable:"
                 }
             }
-            notifyBySlack(currentBuild.result, env.MESSAGE)
+            //notifyBySlack(currentBuild.result, env.MESSAGE)
             cleanWs()
         }
     }

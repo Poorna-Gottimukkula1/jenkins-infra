@@ -6,11 +6,11 @@ else
     exit 1
 fi
 # Capturing Terraform template
-if [ ! -f ${WORKSPACE}/deploy/.${TARGET}.tfvars ]; then
+if [ ! -f ${WORKSPACE}/deploy/.${TARGET}-abi.tfvars ]; then
     echo "${WORKSPACE}/deploy/.${TARGET}.tfvars not found!"
     exit 1
 else
-    cp ${WORKSPACE}/deploy/.${TARGET}.tfvars ${TARGET}.tfvars
+    cp ${WORKSPACE}/deploy/.${TARGET}-abi.tfvars ${TARGET}.tfvars
     sed -i "s|password.*=.*$|password = ************|g" ${TARGET}.tfvars
     sed -i "s|user_name.*=.*$|user_name = ************|g" ${TARGET}.tfvars
     sed -i "s|auth_url.*=.*$|auth_url = ************|g" ${TARGET}.tfvars

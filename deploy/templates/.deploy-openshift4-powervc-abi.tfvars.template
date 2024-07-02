@@ -19,7 +19,7 @@ public_key  = ""
 bastion = { instance_type  = "__BASTION_TEMPLATE__", image_id = "__BASTION_IMAGE_ID__" }
 bootstrap = { instance_type  = "__BOOTSTRAP_TEMPLATE__", image_id = "__RHCOS_IMAGE_ID__",  "count"   = 1 }
 master = { instance_type  = "__MASTER_TEMPLATE__", image_id = "__RHCOS_IMAGE_ID__",  "count"   = __NUM_OF_MASTERS__ }
-worker = { instance_type  = "__WORKER_TEMPLATE__", image_id = "__RHCOS_IMAGE_ID__",  "count"   = __NUM_OF_WORKERS__,  data_volume_count = __DATA_VOLUME_COUNT__,  data_volume_size = __DATA_VOLUME_SIZE__ }
+worker = { instance_type  = "__WORKER_TEMPLATE__", image_id = "__RHCOS_IMAGE_ID__",  "count"   = __NUM_OF_WORKERS__ }
 
 ## RedHat Subscription credentials
 rhel_subscription_username = "__REDHAT_USERNAME__"
@@ -29,7 +29,7 @@ rhel_username = "__RHEL_USERNAME__"
 
 openshift_install_tarball =  "__OPENSHIFT_INSTALL_TARBALL__"
 openshift_client_tarball = "__OPENSHIFT_CLIENT_TARBALL__"
-#release_image_override = "__OPENSHIFT_IMAGE__"
+release_image_override = "__OPENSHIFT_IMAGE__"
 pull_secret_file = "__PULL_SECRET_FILE__"
 cluster_domain = "__CLUSTER_DOMAIN__"
 cluster_id_prefix = "__INSTANCE_NAME__"
@@ -112,3 +112,25 @@ cs_operand_list = [
         "ibm-commonui-operator",
         "ibm-ingress-nginx-operator"
     ]
+#################################
+# define the install type: agent based install, assisted install or SNO
+install_type = "__AI_INSTALL_TYPE__"
+
+#################################
+# variables for assisted install
+#################################
+assisted_ocp_version   = "__OCP_RELEASE__"
+assisted_rhcos_version = "__OCP_RELEASE__"
+assisted_url = "https://api.openshift.com/api/assisted-install/v2"
+assisted_token = "__AI_TOKEN__"
+
+
+### OpenShift Installation Details
+
+
+
+### OpenShift RHCOS image files
+openshift_rhcos_iso       = "https://mirror.openshift.com/pub/openshift-v4/ppc64le/dependencies/rhcos/pre-release/4.15.0-rc.0/rhcos-live.ppc64le.iso"
+openshift_rhcos_kernel    = "https://mirror.openshift.com/pub/openshift-v4/ppc64le/dependencies/rhcos/pre-release/4.15.0-rc.0/rhcos-installer-kernel-ppc64le"
+openshift_rhcos_initramfs = "https://mirror.openshift.com/pub/openshift-v4/ppc64le/dependencies/rhcos/pre-release/4.15.0-rc.0/rhcos-installer-initramfs.ppc64le.img"
+openshift_rhcos_rootfs    = "https://mirror.openshift.com/pub/openshift-v4/ppc64le/dependencies/rhcos/pre-release/4.15.0-rc.0/rhcos-installer-rootfs.ppc64le.img"
