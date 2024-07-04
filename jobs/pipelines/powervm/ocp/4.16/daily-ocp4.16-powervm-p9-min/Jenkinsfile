@@ -1,4 +1,4 @@
-@Library('jenkins-upstream-library1') _
+@Library('jenkins-upstream-library1@abi-powervc') _
 
 pipeline {
     agent {
@@ -19,15 +19,15 @@ pipeline {
         ARTIFACTORY_TOKEN = credentials('ARTIFACTORY_TOKEN')
         REDHAT_USERNAME = credentials('REDHAT_USERNAME')
         REDHAT_PASSWORD = credentials('REDHAT_PASSWORD')
-        PULL_SECRET = credentials('PULL_SECRET')
+        PULL_SECRET = credentials('AI_PULL_SECRET')
         AI_TOKEN = credentials('AI_TOKEN')
 
 
         //Env constants
         HARDWARE_CHOSE = "P9"
-        TERRAFORM_VER = "1.8.4"
+        TERRAFORM_VER = "1.9.1"
 
-        OCP_RELEASE="4.15"
+        OCP_RELEASE="4.17"
         TARGET = "deploy-openshift4-powervc"
         TEMPLATE_FILE = ".${TARGET}-abi.tfvars.template"
         AI_INSTALL_TYPE = "assisted"
@@ -35,7 +35,7 @@ pipeline {
         POWERVS = false
         SCRIPT_DEPLOYMENT = false
         WAIT_FOR_DEBUG = "1"
-        REDHAT_RELEASE = "9.3"
+        REDHAT_RELEASE = "9.4"
 
         //Branch
         OPENSHIFT_POWERVC_GIT_TF_DEPLOY_PROJECT="https://github.com/ocp-power-automation/ocp4-ai-power.git"
@@ -44,7 +44,7 @@ pipeline {
         //E2e and Scale specific variables
         ENABLE_E2E_TEST="true"
         ENABLE_SCALE_TEST="false"
-        GOLANG_TARBALL="https://dl.google.com/go/go1.22.0.linux-ppc64le.tar.gz"
+        GOLANG_TARBALL="https://dl.google.com/go/go1.22.4.linux-ppc64le.tar.gz"
 
         // Type of configuration
         CONFIG_TYPE="min"
@@ -66,6 +66,15 @@ pipeline {
             steps {
                 setupCommonEnvironmentVariables()
                 setupClusterConfig("${CONFIG_TYPE}")
+                script {
+                    //env.CLUSTER_DOMAIN = "ocp.qe"
+                    env.DNS_FORWARDERS = "10.0.10.5"
+                    env.NUM_OF_WORKERS = "2"
+                    env.NUM_OF_MASTERS = "3"
+                    env.OPENSHIFT_INSTALL_TARBALL="https://mirror.openshift.com/pub/openshift-v4/ppc64le/clients/ocp-dev-preview/candidate-4.16/openshift-install-linux.tar.gz"
+                    env.OPENSHIFT_CLIENT_TARBALL="https://mirror.openshift.com/pub/openshift-v4/ppc64le/clients/ocp-dev-preview/candidate-4.16/openshift-client-linux.tar.gz"
+                    env.OPENSHIFT_CLIENT_TARBALL_AMD64="https://mirror.openshift.com/pub/openshift-v4/amd64/clients/ocp-dev-preview/candidate-4.16/openshift-client-linux.tar.gz"
+                }
             }
         }
         stage('pull artifact') {
@@ -165,11 +174,11 @@ pipeline {
                 setupKubeconfigOcp4()
             }
         }
-        // stage('Setup and run ansible extra') {
-        //     steps {
-        //        setupAndRunE2e()
-        //     }
-        // }
+        stage('Setup and run ansible extra') {
+            steps {
+               setupAndRunE2e()
+            }
+        }
         stage('Gather pprof and prometheus data') {
             steps {
                 //gatherPrometheusData()
