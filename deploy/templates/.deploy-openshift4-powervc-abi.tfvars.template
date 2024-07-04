@@ -17,13 +17,15 @@ private_key = ""
 public_key  = ""
 
 bastion = { instance_type  = "ocp-bastion", image_id = "__BASTION_IMAGE_ID__" }
-bootstrap = { instance_type  = "ocp-bastion", image_id = "__RHCOS_IMAGE_ID__",  "count"   = 1 }
+bootstrap = { instance_type  = "ocp-bastion", image_id = "__RHCOS_IMAGE_ID__",  "count"   = 0 }
 master = { instance_type  = "ocp-bastion", image_id = "__RHCOS_IMAGE_ID__",  "count"   = __NUM_OF_MASTERS__ }
 worker = { instance_type  = "ocp-worker", image_id = "__RHCOS_IMAGE_ID__",  "count"   = __NUM_OF_WORKERS__ }
 
 ## RedHat Subscription credentials
 rhel_subscription_username = "__REDHAT_USERNAME__"
 rhel_subscription_password = "__REDHAT_PASSWORD__"
+rhel_subscription_org           = ""                        # Define it only when using activationkey for RHEL subscription
+rhel_subscription_activationkey = ""                        # Define it only when using activationkey for RHEL subscription
 
 rhel_username = "__RHEL_USERNAME__"
 
@@ -34,84 +36,8 @@ pull_secret_file = "__PULL_SECRET_FILE__"
 cluster_domain = "__CLUSTER_DOMAIN__"
 cluster_id_prefix = "__INSTANCE_NAME__"
 
-#storage_type  = "__STORAGE_TYPE__"
-#volume_size = "300"
-#mount_etcd_ramdisk  = "__MOUNT_ETCD_RAMDISK__"
-
-#rhcos_pre_kernel_options   = [__PRE_KERNEL_OPTIONS__]
-
-#scg_id = "__SCG_ID__"
-#volume_storage_template = "__VOLUME_STORAGE_TEMPLATE__"
-
-cni_network_provider = "__CNI_NETWORK_PROVIDER__"
-
 connection_timeout = "__CONNECTION_TIME_OUT__"
 
-fips_compliant = "__FIPS_COMPLIANT__"
-
-kdump_enable = "__KDUMP_ENABLE__"
-
-e2e_tests_git = "__E2E_GIT__"
-
-e2e_tests_git_branch = "__E2E_BRANCH__"
-
-e2e_tests_exclude_list_url = "__E2E_EXCLUDE_LIST__"
-
-e2e_tests_enabled = "__ENABLE_E2E_TEST__"
-
-e2e_upgrade_enabled = "__ENABLE_E2E_UPGRADE__"
-
-e2e_upgrade_image = "__OPENSHIFT_UPGRADE_IMAGE__"
-
-github_username = "__GITHUB_USER__"
-
-github_token = "__GITHUB_TOKEN__"
-
-golang_tarball = "__GOLANG_TARBALL__"
-
-scale_test_enabled = "__ENABLE_SCALE_TEST__"
-
-scale_num_of_deployments = "__SCALE_NUM_OF_DEPLOYMENTS__"
-
-upgrade_image = "__UPGRADE_IMAGE__"
-
-upgrade_version = "__UPGRADE_VERSION__"
-
-upgrade_channel = "__UPGRADE_CHANNEL__"
-
-upgrade_pause_time = "__UPGRADE_PAUSE_TIME__"
-
-upgrade_delay_time = "__UPGRADE_DELAY_TIME__"
-
-chrony_config = "__CHRONY_CONFIG__"
-install_playbook_repo = "__INSTALL_PLAYBOOK_REPO__"
-
-ocp4_extras_playbook_tag = "335a0dc1b329c3f05e3b48409441d9eb1420c27b"
-
-chrony_config_servers = [ __CHRONY_SERVERS__ ]
-
-dns_forwarders = "__DNS_FORWARDERS__"
-
-setup_squid_proxy = "__SETUP_SQUID_PROXY__"
-proxy = {server = "__PROXY_ADDRESS__"}
-
-cs_install                  = __CS_INSTALL__
-cs_project_name             = "ibm-common-services"
-cs_subscription_channel     = "stable-v1"
-cs_subscription_strategy    = "Automatic"
-cs_operand_list = [
-        "ibm-cert-manager-operator",
-        "ibm-mongodb-operator",
-        "ibm-iam-operator",
-        "ibm-monitoring-exporters-operator",
-        "ibm-monitoring-prometheusext-operator",
-        "ibm-monitoring-grafana-operator",
-        "ibm-healthcheck-operator",
-        "ibm-management-ingress-operator",
-        "ibm-metering-operator",
-        "ibm-commonui-operator",
-        "ibm-ingress-nginx-operator"
-    ]
 #################################
 # define the install type: agent based install, assisted install or SNO
 install_type = "__AI_INSTALL_TYPE__"
@@ -119,7 +45,7 @@ install_type = "__AI_INSTALL_TYPE__"
 #################################
 # variables for assisted install
 #################################
-assisted_ocp_version   = "__OCP_RELEASE__"
+assisted_ocp_version   = "4.17.0-ec.1"
 assisted_rhcos_version = "__OCP_RELEASE__"
 assisted_url = "https://api.openshift.com/api/assisted-install/v2"
 assisted_token = "__AI_TOKEN__"
@@ -134,3 +60,5 @@ assisted_token = "__AI_TOKEN__"
 #openshift_rhcos_kernel    = "https://mirror.openshift.com/pub/openshift-v4/ppc64le/dependencies/rhcos/pre-release/4.15.0-rc.0/rhcos-installer-kernel-ppc64le"
 #openshift_rhcos_initramfs = "https://mirror.openshift.com/pub/openshift-v4/ppc64le/dependencies/rhcos/pre-release/4.15.0-rc.0/rhcos-installer-initramfs.ppc64le.img"
 #openshift_rhcos_rootfs    = "https://mirror.openshift.com/pub/openshift-v4/ppc64le/dependencies/rhcos/pre-release/4.15.0-rc.0/rhcos-installer-rootfs.ppc64le.img"
+dns_forwarders = "__DNS_FORWARDERS__"
+scg_id = "__SCG_ID__"

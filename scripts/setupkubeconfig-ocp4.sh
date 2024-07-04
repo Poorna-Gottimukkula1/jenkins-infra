@@ -12,7 +12,14 @@
         if [ $? -eq 0 ] ; then
             rm -rf ~/.kube
             mkdir ~/.kube
-            scp -i id_rsa -o StrictHostKeyChecking=no  root@${BASTION_IP}:/root/openstack-upi/auth/kubeconfig ~/.kube/config
+            if [ ${OPENSHIFT_POWERVC_AI_SUBDIR} ]; then
+               scp -i id_rsa -o StrictHostKeyChecking=no  root@${BASTION_IP}:/root/ocp4-workdir-assisted/auth/kubeconfig ~/.kube/config
+               echo "Using the AI sub directory"
+            else
+               scp -i id_rsa -o StrictHostKeyChecking=no  root@${BASTION_IP}:/root/openstack-upi/auth/kubeconfig ~/.kube/config
+               echo "Default directory"
+            fi
+            #scp -i id_rsa -o StrictHostKeyChecking=no  root@${BASTION_IP}:/root/ocp4-workdir-assisted/auth/kubeconfig ~/.kube/config  
             if [ ${POWERVS} == "false" ] ; then
                 make terraform:output TERRAFORM_DIR=.${TARGET} TERRAFORM_OUTPUT_VAR=etc_hosts_entries >> /etc/hosts
             else
