@@ -1,10 +1,8 @@
 @Library('jenkins-upstream-library') _
 pipeline {
     agent {
-        docker {
-            image 'quay.io/powercloud/inbound-agent:3256.v88a_f6e922152-2-jdk17.1'
-            args '-v /etc/resolv.conf:/etc/resolv.conf -v /run/containerd/containerd.sock:/run/containerd/containerd.sock'
-            label 'jump-vpc-x86_64'
+        kubernetes {
+            inheritFrom 'jenkins-agent'
         }
     }
     options {
