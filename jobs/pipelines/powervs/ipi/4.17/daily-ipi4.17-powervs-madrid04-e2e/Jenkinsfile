@@ -39,11 +39,11 @@ pipeline {
         JENKINS_TOKEN=""
 
         BASEDOMAIN="ppc64le-cloud.cis.ibm.net"
-        OCP_RELEASE = "4.16"
-        CLUSTER_NAME="rdr-cicd-wdc06-416"
+        OCP_RELEASE = "4.17"
+        CLUSTER_NAME="rdr-cicd-wdc06-417"
         CLUSTER_DIR="./ipi-install"
-        GO_VERSION="1.22.1"
-        OPENSHIFT_CLIENT_TARBALL_AMD64="https://mirror.openshift.com/pub/openshift-v4/amd64/clients/ocp-dev-preview/candidate-4.16/openshift-client-linux.tar.gz"
+        GO_VERSION="1.22.4"
+        OPENSHIFT_CLIENT_TARBALL_AMD64="https://mirror.openshift.com/pub/openshift-v4/amd64/clients/ocp-dev-preview/candidate-4.17/openshift-client-linux-amd64-rhel8.tar.gz"
         //OPENSHIFT_INSTALLER_URL="https://mirror.openshift.com/pub/openshift-v4/amd64/clients/ocp-dev-preview/candidate-4.16/openshift-install-linux.tar.gz"
         POWERVS = true
         TIMEOUT = "720"
@@ -105,7 +105,7 @@ pipeline {
                                 sed -i "s|export OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE.*$|export OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE=\\"${OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE}\\"|g" ./powervs-hack/scripts/create-cluster.sh
                                 sed -i "s|export OPENSHIFT_INSTALL_OS_IMAGE_OVERRIDE.*$||g" ./powervs-hack/scripts/create-cluster.sh
                                 sed -i "s|platform: {}|platform: \\n    powervs:\\n      processors: \\"0.5\\"\\n      sysType: e980|g" ./powervs-hack/scripts/create-cluster.sh
-                                sed -i "s|USE_CAPI.*$|USE_CAPI=false|g" ./powervs-hack/scripts/create-cluster.sh
+                                sed -i "s|USE_CAPI=false|USE_CAPI=true|g" ./powervs-hack/scripts/create-cluster.sh
                             '''
                     }
                     catch (err)
