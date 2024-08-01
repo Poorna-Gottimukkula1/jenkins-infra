@@ -21,4 +21,4 @@ sed -i 's/ansible_connection=local/ansible_connection=ssh/g' compliance_inventor
 sed -i "s|ssh|ssh ansible_ssh_private_key_file=${WORKSPACE}/deploy/id_rsa|g" compliance_inventory
 cat compliance_inventory
 cat ansible.cfg
-ansible-playbook  -i compliance_inventory -e @ocp_compliance_vars.yaml playbooks/ocp-compliance.yml
+ansible-playbook -vvv -i compliance_inventory -e @ocp_compliance_vars.yaml playbooks/ocp-compliance.yml
