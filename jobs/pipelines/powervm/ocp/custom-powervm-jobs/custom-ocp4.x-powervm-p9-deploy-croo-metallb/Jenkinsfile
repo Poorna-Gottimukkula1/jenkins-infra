@@ -24,8 +24,9 @@ pipeline {
     }
     environment {
         // Users and credentials. All must be defined in Jenkins Credentials
-        GITHUB_USER = "${params.GitHubUsername ?: credentials('PUBLIC_GITHUB_USER')}" 
-        GITHUB_TOKEN = "${params.GitHubToken ?: credentials('PUBLIC_GITHUB_TOKEN')}"
+
+        GITHUB_USER = params.GitHubUsername ? params.GitHubUsername : credentials('PUBLIC_GITHUB_USER')
+        GITHUB_TOKEN = params.GitHubToken ? params.GitHubToken : credentials('PUBLIC_GITHUB_TOKEN')
         OS_USERNAME = credentials('OS_USERNAME')
         OS_PASSWORD = credentials('OS_PASSWORD')
         ARTIFACTORY_USER = credentials('ARTIFACTORY_USER')
@@ -72,26 +73,23 @@ pipeline {
         KDUMP_ENABLE = "false"
     }
     stages {
-        stage('Clone ansible extra') {
-            steps {
-                cloneRepo("https://github.com/ocp-power-automation/ocp4-playbooks-extras", "ocp4-playbooks-extras", "*/main")
-            }
-        }
-        stage('Setup Common Environment Variables') {
-            steps {
-                setupCommonEnvironmentVariables()
-                setupClusterConfig("${CONFIG_TYPE}")
-            }
-        }
-        stage('pull artifact') {
-            steps {
-                script {
-                    getArtifacts("mirror-openshift-release", "latest-${OCP_RELEASE}-build.txt")
-                    getArtifacts("powervm/poll-powervc-images", "cicd-rhcos-${OCP_RELEASE}.latest.txt")
-                    getArtifacts("powervm/poll-powervc-images", "cicd-rhel-${REDHAT_RELEASE}.latest.txt")
-                }
-            }
-        }
+        // stage('Prepare') {
+        //     steps {
+        //         script {
+        //             // Securely fetch the credentials
+        //             withCredentials([
+        //                 string(credentialsId: 'PUBLIC_GITHUB_USER', variable: 'CRED_GITHUB_USER'),
+        //                 string(credentialsId: 'PUBLIC_GITHUB_TOKEN', variable: 'CRED_GITHUB_TOKEN')
+        //             ]) {
+        //                 def gitu = params.GitHubUsername?.trim() ? params.GitHubUsername : "jj"
+        //                 def gitp = params.GitHubToken?.trim() ? params.GitHubToken : "jjj"
+        //             }
+
+        //             // Log which credentials are being used, but don't print the actual credentials
+        //             echo "Using GitHub user: ${params.GitHubUsername ? 'Provided by parameter' : 'From Jenkins credentials'}"
+        //         }
+        //     }
+        // }
         //Checkout the installer git repo
         stage('Git clone ') {
             steps {
