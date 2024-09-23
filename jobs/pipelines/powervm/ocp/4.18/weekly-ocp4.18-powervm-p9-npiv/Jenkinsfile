@@ -24,9 +24,8 @@ pipeline {
 
         //Env constants
         HARDWARE_CHOSE = "P9"
-        TERRAFORM_VER = "1.8.4"
-
-        OCP_RELEASE="4.16"
+        TERRAFORM_VER = "1.9.6"
+        OCP_RELEASE="4.18"
         TARGET = "deploy-openshift4-powervc"
         TEMPLATE_FILE = ".${TARGET}.tfvars.template"
         POWERVS = false
@@ -40,14 +39,13 @@ pipeline {
         //E2e and Scale specific variables
         ENABLE_E2E_TEST="true"
         ENABLE_SCALE_TEST="false"
-        GOLANG_TARBALL="https://dl.google.com/go/go1.22.0.linux-ppc64le.tar.gz"
+        GOLANG_TARBALL="https://dl.google.com/go/go1.23.1.linux-ppc64le.tar.gz"
 
         // Type of configuration
-        CONFIG_TYPE="min"
+         CONFIG_TYPE="min"
 
-        //enable kdump
-        KDUMP_ENABLE="true"
-
+        // kdump Configuration
+        KDUMP_ENABLE="false"
 
 
 	 }
@@ -135,6 +133,9 @@ pipeline {
         stage('Initialize Environment') {
             steps {
                 initializeEnvironment()
+                script {
+                    env.SCG_ID = "993a1363-d689-4796-82fb-77ee34e9fa10"
+                }
             }
         }
         stage('Setup Terraform Plugin') {
@@ -162,36 +163,21 @@ pipeline {
                setupAndRunE2e()
             }
         }
-        stage('Setup and run OVN CNI Validation') {
-            steps {
-               runOvnCniValidation()
-            }
-        }
         stage('Gather pprof and prometheus data') {
             steps {
                 //gatherPrometheusData()
                 echo "gatherPrometheusData() is skipped for now"
             }
         }
-        stage('Gather kdump logs if any') {
-            steps {
-                gatherKdumpLogs()
-            }
-        }
     }
     post {
         always {
             archiveAllArtifacts("deploy/conformance-parallel-out.txt.tar.gz", "deploy/summary.txt", "deploy/vars.tfvars",
-                "cpu-pre.pprof", "heap-pre.pprof", "prometheus.tar.gz", "deploy/cron.log", "must-gather.tar.gz", "deploy/kdump.tar.gz", "deploy/successful_tests_cni_ovn_validation.txt", "deploy/failed_tests_cni_ovn_validation.txt")
+                "cpu-pre.pprof", "heap-pre.pprof", "prometheus.tar.gz", "deploy/cron.log", "must-gather.tar.gz")
             cleanupOcp4Cluster()
             checkInfraError()
             processE2eResults()
             //dbDashboardUpdateE2e()
-            script {
-                if (fileExists("deploy/kdump.tar.gz")) {
-                    env.MESSAGE+=", Found Kdump Crash logs :e2e-unstable:"
-                }
-            }
             notifyBySlack(currentBuild.result, env.MESSAGE)
             cleanWs()
         }

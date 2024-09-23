@@ -41,6 +41,7 @@ pipeline {
                             cat images.scnlcicdcloud.all.date.sorted.txt | grep -v ssp | grep 'cicd-rhcos-4\\.15\\|cicd-rhcos-415' | awk '{print $2" "$1}'|head -n 1 > cicd-rhcos-4.15.latest.txt || true
                             cat images.scnlcicdcloud.all.date.sorted.txt | grep -v ssp | grep 'cicd-rhcos-4\\.16\\|cicd-rhcos-416' | awk '{print $2" "$1}'|head -n 1 > cicd-rhcos-4.16.latest.txt || true
                             cat images.scnlcicdcloud.all.date.sorted.txt | grep -v ssp | grep 'cicd-rhcos-4\\.17\\|cicd-rhcos-417' | awk '{print $2" "$1}'|head -n 1 > cicd-rhcos-4.17.latest.txt || true
+                            cat images.scnlcicdcloud.all.date.sorted.txt | grep -v ssp | grep 'cicd-rhcos-4\\.18\\|cicd-rhcos-418' | awk '{print $2" "$1}'|head -n 1 > cicd-rhcos-4.18.latest.txt || true
 
                             cat images.scnlcicdcloud.all.date.sorted.txt | grep -v ssp | grep 'cicd-rhel8\\.3'  | awk '{print $2" "$1}'|head -n 1 > cicd-rhel-8.3.latest.txt || true
                             cat images.scnlcicdcloud.all.date.sorted.txt | grep -v ssp | grep 'cicd-rhel8\\.4'  | awk '{print $2" "$1}'|head -n 1 > cicd-rhel-8.4.latest.txt || true
@@ -67,10 +68,10 @@ pipeline {
         always {
             archiveAllArtifacts("cicd-rhcos-4.11.latest.txt", "cicd-rhcos-4.12.latest.txt", "cicd-rhcos-4.13.latest.txt",
                                 "cicd-rhcos-4.14.latest.txt", "cicd-rhcos-4.15.latest.txt", "cicd-rhcos-4.16.latest.txt", 
-                                "cicd-rhcos-4.17.latest.txt", "cicd-rhel-8.2.latest.txt", "cicd-rhel-8.3.latest.txt",
-                                "cicd-rhel-8.4.latest.txt", "cicd-rhel-8.5.latest.txt" , "cicd-rhel-8.6.latest.txt", 
-                                "cicd-rhel-9.0.latest.txt", "cicd-rhel-9.2.latest.txt", "cicd-rhel-9.3.latest.txt", 
-                                "cicd-rhel-9.4.latest.txt")
+                                "cicd-rhcos-4.17.latest.txt", "cicd-rhcos-4.18.latest.txt", 
+                                "cicd-rhel-8.3.latest.txt", "cicd-rhel-8.4.latest.txt", "cicd-rhel-8.5.latest.txt" , 
+                                "cicd-rhel-8.6.latest.txt", "cicd-rhel-9.0.latest.txt", "cicd-rhel-9.2.latest.txt", 
+                                "cicd-rhel-9.3.latest.txt", "cicd-rhel-9.4.latest.txt")
             cleanWs()
         }
     }

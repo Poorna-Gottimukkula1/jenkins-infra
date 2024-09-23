@@ -62,6 +62,7 @@ pipeline {
                     grep '4\\.15\\.[0-9]\\?[0-9]' all-builds.txt  > all-4.15-builds.txt
                     grep '4\\.16\\.[0-9]\\?[0-9]' all-builds.txt  > all-4.16-builds.txt
                     grep '4\\.17\\.[0-9]\\?[0-9]' all-builds.txt  > all-4.17-builds.txt
+                    grep '4\\.18\\.[0-9]\\?[0-9]' all-builds.txt  > all-4.18-builds.txt
 
                     #Latest Builds
                     cat all-4.11-builds.txt|head -n 1|awk '{print $1}' > latest-4.11-build.txt
@@ -71,6 +72,7 @@ pipeline {
                     cat all-4.15-builds.txt|head -n 1|awk '{print $1}' > latest-4.15-build.txt
                     cat all-4.16-builds.txt|head -n 1|awk '{print $1}' > latest-4.16-build.txt
                     cat all-4.17-builds.txt|head -n 1|awk '{print $1}' > latest-4.17-build.txt
+                    cat all-4.18-builds.txt|head -n 1|awk '{print $1}' > latest-4.18-build.txt
 
                     #All stable Builds
                     cat all-4.11-builds.txt | grep -v 'nightly\\|-rc\\|-fc\\|-ec' > all-4.11-stable-builds.txt
@@ -83,6 +85,7 @@ pipeline {
                     cat all-4.15-builds.txt | grep '\\-rc' > all-4.15-rc-builds.txt
                     cat all-4.16-builds.txt | grep '\\-rc' > all-4.16-rc-builds.txt
                     cat all-4.17-builds.txt | grep '\\-rc' > all-4.17-rc-builds.txt
+                    cat all-4.18-builds.txt | grep '\\-ec' > all-4.18-ec-builds.txt
 
 
                     #Latest stable build
@@ -96,6 +99,7 @@ pipeline {
                     cat all-4.15-rc-builds.txt |head -n 1|awk '{print $1}' > latest-4.15-rc-build.txt
                     cat all-4.16-rc-builds.txt |head -n 1|awk '{print $1}' > latest-4.16-rc-build.txt
                     cat all-4.17-rc-builds.txt |head -n 1|awk '{print $1}' > latest-4.17-rc-build.txt
+                    cat all-4.18-ec-builds.txt |head -n 1|awk '{print $1}' > latest-4.18-ec-build.txt
                     '''
                     }
                     catch (err)
@@ -111,13 +115,13 @@ pipeline {
     post {
         always {
             archiveAllArtifacts("builds.raw.txt", "all-builds.txt", "all-4.11-builds.txt", "all-4.12-builds.txt", "all-4.13-builds.txt",
-                                  "all-4.14-builds.txt", "all-4.15-builds.txt", "all-4.16-builds.txt", "all-4.17-builds.txt",
+                                  "all-4.14-builds.txt", "all-4.15-builds.txt", "all-4.16-builds.txt", "all-4.17-builds.txt", "all-4.18-builds.txt",
                                   "latest-4.11-build.txt","latest-4.12-build.txt", "latest-4.13-build.txt",
-                                  "latest-4.14-build.txt", "latest-4.15-build.txt", "latest-4.16-build.txt", "latest-4.17-build.txt",
+                                  "latest-4.14-build.txt", "latest-4.15-build.txt", "latest-4.16-build.txt", "latest-4.17-build.txt", "latest-4.18-build.txt",
                                   "all-4.11-stable-builds.txt","all-4.12-stable-builds.txt","all-4.13-stable-builds.txt", "all-4.14-stable-builds.txt", "all-4.15-stable-builds.txt", "all-4.16-stable-builds.txt",
                                   "all-4.14-rc-builds.txt", "all-4.15-rc-builds.txt", "all-4.16-rc-builds.txt", "all-4.17-rc-builds.txt",
                                   "latest-4.11-stable-build.txt", "latest-4.12-stable-build.txt","latest-4.13-stable-build.txt", "latest-4.14-stable-build.txt", "latest-4.15-stable-build.txt", "latest-4.16-stable-build.txt",
-                                  "latest-4.14-rc-build.txt", "latest-4.15-rc-build.txt", "latest-4.16-rc-build.txt", "latest-4.17-rc-build.txt")
+                                  "latest-4.14-rc-build.txt", "latest-4.15-rc-build.txt", "latest-4.16-rc-build.txt", "latest-4.17-rc-build.txt", "latest-4.18-ec-build.txt")
             cleanWs()
         }
     }

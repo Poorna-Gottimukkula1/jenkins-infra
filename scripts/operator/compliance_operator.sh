@@ -11,7 +11,7 @@ sed -i "s|compliance_e2e_github_repo:.*$|compliance_e2e_github_repo: https://git
 sed -i "s|compliance_e2e_github_branch:.*$|compliance_e2e_github_branch: master|g" ocp_compliance_vars.yaml
 sed -i "s|compliance_github_username:.*$|compliance_github_username: ${GITHUB_USER}|g" ocp_compliance_vars.yaml
 sed -i "s|compliance_github_token:.*$|compliance_github_token: ${GITHUB_TOKEN}|g" ocp_compliance_vars.yaml
-sed -i "s|compliance_go_tarball:.*$|compliance_go_tarball: ${GOLANG_TARBALL}|g" cro_vars.yaml
+sed -i "s|compliance_go_tarball:.*$|compliance_go_tarball: ${GOLANG_TARBALL}|g" ocp_compliance_vars.yaml
 sed -i "s|compliance_cleanup:.*$|compliance_cleanup: true|g" ocp_compliance_vars.yaml
 cat ocp_compliance_vars.yaml
 #Inventory Details

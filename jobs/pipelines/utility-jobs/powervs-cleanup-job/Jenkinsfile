@@ -21,7 +21,7 @@ pipeline {
         //users and credentials. All must be defined in Jenkins Credentials
         IBMCLOUD_API_KEY = credentials('IBMCLOUD_API_KEY')
         CRN = "crn:v1:bluemix:public:power-iaas:tor01:a/7cfbd5381a434af7a09289e795840d4e:007e0e92-91d5-4f30-bc63-ca515660a4c2::"
-        PVSADM_VERSION = "v0.1.5"
+        PVSADM_VERSION = "v0.1.15"
 	}
 
 	stages {
@@ -29,7 +29,7 @@ pipeline {
             steps {
                  container('ibmcloud'){
 		  	script {
-				sh(returnStatus: false, returnStdout: false, script: "curl -sL https://raw.githubusercontent.com/ppc64le-cloud/pvsadm/master/get.sh | VERSION=${PVSADM_VERSION} FORCE=1 bash; pvsadm version")
+				sh(returnStatus: false, returnStdout: false, script: "curl -sL https://raw.githubusercontent.com/ppc64le-cloud/pvsadm/${PVSADM_VERSION}/get.sh | VERSION=${PVSADM_VERSION} FORCE=1 bash; pvsadm version")
 				sh '''
 				    echo "IBM cloud login"
 				    ibmcloud login -a cloud.ibm.com -r us-south -g ocp-cicd-resource-group -q --apikey=${IBMCLOUD_API_KEY}

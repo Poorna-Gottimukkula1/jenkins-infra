@@ -1,0 +1,199 @@
+@Library('jenkins-upstream-library') _
+
+pipeline {
+    agent {
+        docker {
+            image 'quay.io/powercloud/inbound-agent:3256.v88a_f6e922152-2-jdk17.1'
+            args '-v /etc/resolv.conf:/etc/resolv.conf'
+            label 'jump-vpc-x86_64'
+        }
+    }
+    environment {
+        //users and credentials. All must be defined in Jenkins Credentials
+        GITHUB_USER = credentials('GITHUB_USER')
+        GITHUB_TOKEN = credentials('GITHUB_TOKEN')
+        OS_USERNAME = credentials('OS_USERNAME')
+        OS_PASSWORD = credentials('OS_PASSWORD')
+        DOCKER_USER = credentials('DOCKER_USER')
+        ARTIFACTORY_USER = credentials('ARTIFACTORY_USER')
+        ARTIFACTORY_TOKEN = credentials('ARTIFACTORY_TOKEN')
+        REDHAT_USERNAME = credentials('REDHAT_USERNAME')
+        REDHAT_PASSWORD = credentials('REDHAT_PASSWORD')
+        PULL_SECRET = credentials('PULL_SECRET')
+
+
+        //Env constants
+        HARDWARE_CHOSE = "P9"
+        TERRAFORM_VER = "1.8.4"
+
+        OCP_RELEASE="4.16"
+        TARGET = "deploy-openshift4-powervc"
+        TEMPLATE_FILE = ".${TARGET}.tfvars.template"
+        POWERVS = false
+        SCRIPT_DEPLOYMENT = false
+        WAIT_FOR_DEBUG = "1"
+        REDHAT_RELEASE = "9.4"
+
+        //Branch
+        OPENSHIFT_POWERVC_GIT_TF_DEPLOY_BRANCH="main"//The download branch
+
+        //E2e and Scale specific variables
+        ENABLE_E2E_TEST="true"
+        ENABLE_SCALE_TEST="false"
+        GOLANG_TARBALL="https://dl.google.com/go/go1.22.0.linux-ppc64le.tar.gz"
+
+        // Type of configuration
+        CONFIG_TYPE="min"
+
+        //enable kdump
+        KDUMP_ENABLE="true"
+
+
+
+	 }
+
+    stages {
+        stage('Clone ansible extra') {
+            steps {
+                cloneRepo("https://github.com/ocp-power-automation/ocp4-playbooks-extras", "ocp4-playbooks-extras", "*/main")
+            }
+        }
+        stage('Setup Common Environment Variables') {
+            steps {
+                setupCommonEnvironmentVariables()
+                setupClusterConfig("${CONFIG_TYPE}")
+            }
+        }
+        stage('pull artifact') {
+            steps {
+                script {
+                    getArtifacts("mirror-openshift-release", "latest-${OCP_RELEASE}-stable-build.txt")
+                    getArtifacts("powervm/poll-powervc-images", "cicd-rhcos-${OCP_RELEASE}.latest.txt")
+                    getArtifacts("powervm/poll-powervc-images", "cicd-rhel-${REDHAT_RELEASE}.latest.txt")
+                }
+            }
+        }
+        //Checkout the installer git repo
+        stage('Prepare Terraform Template') {
+            steps {
+                script {
+                    ansiColor('xterm') {
+                        echo ""
+                    }
+                    try
+                    {
+                        gbToMb()
+                        pullSecret()
+                        env.OPENSHIFT_IMAGE = ""
+                        if (fileExists("deploy/artifactory/latest-${OCP_RELEASE}-stable-build.txt")) {
+                            env.OPENSHIFT_IMAGE = readFile "deploy/artifactory/latest-${OCP_RELEASE}-stable-build.txt"
+                            env.OPENSHIFT_IMAGE = env.OPENSHIFT_IMAGE.trim()
+                            env.OCP_RELEASE_TAG = env.OPENSHIFT_IMAGE.split(":")[1].trim()
+                        }
+                        else {
+                            echo "latest-${OCP_RELEASE}-stable-build.txt file does not exist. Please check mirror-openshift-release job"
+                            throw err
+                        }
+                        if (fileExists("deploy/artifactory/cicd-rhcos-${OCP_RELEASE}.latest.txt")) {
+                            env.RHCOS_IMAGE = readFile "deploy/artifactory/cicd-rhcos-${OCP_RELEASE}.latest.txt"
+                            env.RHCOS_IMAGE_NAME = env.RHCOS_IMAGE.split()[0].trim()
+                            env.RHCOS_IMAGE_ID = env.RHCOS_IMAGE.split()[1].trim()
+                        }
+                        else {
+                            echo "cicd-rhcos-${OCP_RELEASE}.latest.txt file does not exist. Please check poll-powervc-images job"
+                            throw err
+                        }
+                        if (fileExists("deploy/artifactory/cicd-rhel-${REDHAT_RELEASE}.latest.txt")) {
+                            env.BASTION_IMAGE = readFile "deploy/artifactory/cicd-rhel-${REDHAT_RELEASE}.latest.txt"
+                            env.BASTION_IMAGE_NAME = env.BASTION_IMAGE.split()[0].trim()
+                            env.BASTION_IMAGE_ID = env.BASTION_IMAGE.split()[1].trim()
+                        }
+                        else {
+                            echo "cicd-rhel-${REDHAT_RELEASE}.latest.txt file does not exist. Please check poll-powervc-images job"
+                            throw err
+                        }
+                        if (env.DEPLOY_MASTER == "false")
+                        {
+                            echo "Cluster cant deploy without master"
+                            throw err
+                        }
+
+                        createTemplate(env.OS_AUTH_URL, env.MASTER_VCPUS , "${MASTER_MEMORY_MB}", env.MASTER_PROCESSORS, env.MASTER_TEMPLATE)
+                        createTemplate(env.OS_AUTH_URL, env.WORKER_VCPUS , "${WORKER_MEMORY_MB}", env.WORKER_PROCESSORS, env.WORKER_TEMPLATE)
+                        createTemplate(env.OS_AUTH_URL, env.BASTION_VCPUS , "${BASTION_MEMORY_MB}", env.BASTION_PROCESSORS, env.BASTION_TEMPLATE)
+                        createTemplate(env.OS_AUTH_URL, env.BOOTSTRAP_VCPUS , "${BOOTSTRAP_MEMORY_MB}", env.BOOTSTRAP_PROCESSORS, env.BOOTSTRAP_TEMPLATE)
+                    }
+                    catch (err)
+                    {
+                        echo 'Error ! Template preparation failed !'
+                        env.FAILED_STAGE=env.STAGE_NAME
+                        throw err
+                    }
+                }
+            }
+        }
+        stage('Initialize Environment') {
+            steps {
+                initializeEnvironment()
+            }
+        }
+        stage('Setup Terraform Plugin') {
+            steps {
+                setupTerraformPlugin()
+            }
+        }
+        stage('Deploy OCP Cluster') {
+            steps {
+                deployCluster()
+            }
+        }
+        stage('Run crontab script for capturing outputs of multiple commands') {
+            steps {
+                crontabCommandCaptureScript()
+            }
+        }
+        stage('Setup Kubectl') {
+            steps {
+                setupKubeconfigOcp4()
+            }
+        }
+        stage('Setup and run ansible extra') {
+            steps {
+               setupAndRunE2e()
+            }
+        }
+        stage('Setup and run OVN CNI Validation') {
+            steps {
+               runOvnCniValidation()
+            }
+        }
+        stage('Gather pprof and prometheus data') {
+            steps {
+                //gatherPrometheusData()
+                echo "gatherPrometheusData() is skipped for now"
+            }
+        }
+        stage('Gather kdump logs if any') {
+            steps {
+                gatherKdumpLogs()
+            }
+        }
+    }
+    post {
+        always {
+            archiveAllArtifacts("deploy/conformance-parallel-out.txt.tar.gz", "deploy/summary.txt", "deploy/vars.tfvars",
+                "cpu-pre.pprof", "heap-pre.pprof", "prometheus.tar.gz", "deploy/cron.log", "must-gather.tar.gz", "deploy/kdump.tar.gz", "deploy/successful_tests_cni_ovn_validation.txt", "deploy/failed_tests_cni_ovn_validation.txt")
+            cleanupOcp4Cluster()
+            checkInfraError()
+            processE2eResults()
+            //dbDashboardUpdateE2e()
+            script {
+                if (fileExists("deploy/kdump.tar.gz")) {
+                    env.MESSAGE+=", Found Kdump Crash logs :e2e-unstable:"
+                }
+            }
+            notifyBySlack(currentBuild.result, env.MESSAGE)
+            cleanWs()
+        }
+    }
+}

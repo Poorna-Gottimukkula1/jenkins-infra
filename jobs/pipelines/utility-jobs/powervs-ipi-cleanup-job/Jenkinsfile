@@ -16,6 +16,7 @@ pipeline {
         OCP_RELEASE = "4.16"
         OPENSHIFT_CLIENT_TARBALL_AMD64="https://mirror.openshift.com/pub/openshift-v4/amd64/clients/ocp/latest-${OCP_RELEASE}/openshift-client-linux.tar.gz"
         OPENSHIFT_INSTALLER_URL="https://mirror.openshift.com/pub/openshift-v4/amd64/clients/ocp/latest-${OCP_RELEASE}/openshift-install-linux.tar.gz"
+        PVSADM_VERSION = "v0.1.15"
 	 }
     stages {
         stage('Initilize powervs workspace and cleanup stale ipi clusters') {
@@ -40,7 +41,7 @@ pipeline {
                             "sydney04": ["region": "syd", "zone": "syd04", "service_instance_guid": "2016869c-f03e-425a-9145-3f245b17a2f1"]
                         ]
                         sh '''
-                            curl -sL https://raw.githubusercontent.com/ppc64le-cloud/pvsadm/master/get.sh | VERSION="v0.1.8" FORCE=1 bash
+                            curl -sL https://raw.githubusercontent.com/ppc64le-cloud/pvsadm/${PVSADM_VERSION}/get.sh | VERSION=${PVSADM_VERSION} FORCE=1 bash; pvsadm version
                             wget --quiet "${OPENSHIFT_CLIENT_TARBALL_AMD64}" -O - | tar -xz
                             cp kubectl oc /usr/bin/
                             curl -L "${OPENSHIFT_INSTALLER_URL}" > openshift-install-linux.tar.gz
