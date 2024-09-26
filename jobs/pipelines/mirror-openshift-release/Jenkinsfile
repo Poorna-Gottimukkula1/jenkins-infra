@@ -52,8 +52,21 @@ pipeline {
                     try
                     {
                     sh '''
-                    curl https://openshift-release-ppc64le.apps.ci.l2s4.p1.openshiftapps.com/ > builds.raw.txt
-                    cat builds.raw.txt | grep -A 2 '<td class="text-monospace"' | grep -v '^--' | awk 'NR%3{printf "%s ",$0;next;}1'|grep -v 'Failed' |sed 's|\\([^/]*/\\)\\{4\\}[^>]*>\\([^>]*\\).*title[^"]*"\\([^"]*\\).*|\\2  \\3|' | sed 's/<\\/a//'| sort -k2 -r |awk -v registry="${DOCKER_REGISTRY}" '{print registry"/ocp-ppc64le/release-ppc64le:"$0}' > all-builds.txt
+                    curl https://openshift-release-multi.apps.ci.l2s4.p1.openshiftapps.com/ > builds.raw.txt
+                    cat builds.raw.txt | grep -A 2 '<td class="text-monospace"' | grep -v '^--' | awk 'NR%3{printf "%s ",$0;next;}1'|grep -v 'Failed' |sed 's|\\([^/]*/\\)\\{4\\}[^>]*>\\([^>]*\\).*title[^"]*"\\([^"]*\\).*|\\2  \\3|' | sed 's/<\\/a//'| sort -k2 -r > raw-all-builds.txt
+
+                    for build in $(cat raw-all-builds.txt|awk '{print $1}'); do
+                      if echo $build | grep -q "nightly"; then
+                        echo quay.io/openshift-release-dev/ocp-release-nightly:${build} >> all-builds.txt
+                      else
+                        if echo $build | grep -q "multi"; then
+                            echo quay.io/openshift-release-dev/ocp-release:${build} >> all-builds.txt
+                        else
+                            echo quay.io/openshift-release-dev/ocp-release:${build}-multi >> all-builds.txt
+                        fi
+                      fi
+                    done
+
                     #All Builds
                     grep '4\\.11\\.[0-9]\\?[0-9]' all-builds.txt  > all-4.11-builds.txt
                     grep '4\\.12\\.[0-9]\\?[0-9]' all-builds.txt  > all-4.12-builds.txt
