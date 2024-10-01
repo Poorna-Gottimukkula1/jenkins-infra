@@ -66,16 +66,16 @@ def getChangedFilesList() {
             mkdir "versions"
         fi
 
-        # Checking if new builds are available for OCP 4.12, 4.13, 4.14, 4.15 and 4.16
-        for ocp_version in 12 13 14 15 16
+        # Checking if new builds are available for OCP 4.13, 4.14, 4.15, 4.16 and 4.17
+        for ocp_version in 13 14 15 16 17
         do
-            VERSION=`curl -X GET "https://quay.io/api/v1/repository/openshift-release-dev/ocp-release/tag/?onlyActiveTags=true&limit=100" | jq '.tags | sort_by(.start_ts) | .[].name' | grep "4.${ocp_version}.*ppc64le" | grep -v "multi\\|rc\\|ec\\|fc" | tail -1 | tr -d '"'`
+            VERSION=`curl -X GET "https://quay.io/api/v1/repository/openshift-release-dev/ocp-release/tag/?onlyActiveTags=true&limit=100" | jq '.tags | sort_by(.start_ts) | .[].name' | grep "4.${ocp_version}.*multi" | grep -v "multi-\\|rc\\|ec\\|fc" | tail -1 | tr -d '"'`
             if [ "$VERSION" = "" ] && [ ! -f versions/4.$ocp_version.txt ];
             then
                 # Checking the quay pages for new builds
                 for i in 2 3 4 5 6 7 8 9 10 11 12
                 do
-                    VERSION=`curl -X GET "https://quay.io/api/v1/repository/openshift-release-dev/ocp-release/tag/?onlyActiveTags=true&limit=100&page=$i" | jq '.tags | sort_by(.start_ts) | .[].name' | grep "4.${ocp_version}.*ppc64le" | grep -v "multi\\|rc\\|ec\\|fc" | tail -1 | tr -d '"'`
+                    VERSION=`curl -X GET "https://quay.io/api/v1/repository/openshift-release-dev/ocp-release/tag/?onlyActiveTags=true&limit=100&page=$i" | jq '.tags | sort_by(.start_ts) | .[].name' | grep "4.${ocp_version}.*multi" | grep -v "multi-\\|rc\\|ec\\|fc" | tail -1 | tr -d '"'`
                     if [ "$VERSION" != "" ] ;
                     then
                         break
@@ -84,7 +84,7 @@ def getChangedFilesList() {
             fi
 
             # Comparing the builds from quay and artifacts, updating the artifcats with lastest builds
-            if [ "$(cat versions/4.$ocp_version.txt | grep ppc64le)" != "$VERSION" ] && [ "$VERSION" != "" ];
+            if [ "$(cat versions/4.$ocp_version.txt | grep multi)" != "$VERSION" ] && [ "$VERSION" != "" ];
             then
                 echo $VERSION > versions/4.$ocp_version.txt
                 echo -n $(date +%Y-%m-%d) >> versions/4.$ocp_version.txt 
@@ -111,8 +111,8 @@ def getStableBuild(ocp_build){
     // Generates the older version of ocp build (stable build) from current version 
     version = ocp_build.substring(ocp_build.indexOf(".",3)+1, ocp_build.indexOf("-"))
     if (version != "0"){
-        build         = (version.toInteger()-1).toString() + "-ppc64le"
-        stableBuild   = ocp_build.replace(version + '-ppc64le', build)
+        build         = (version.toInteger()-1).toString() + "-multi"
+        stableBuild   = ocp_build.replace(version + '-multi', build)
     }else{
         stableBuild = ocp_build
     }
@@ -130,7 +130,7 @@ def next_release_builds(release_file){
             //Check if the file has been updated in the same week
             isNewFile = sh(returnStdout:true, script: '''
                 #!/bin/bash
-                if [ $(date +%s -d "$(cat ${newer_release_file} | grep -v ppc64le)") -ge $(date +%s -d "$(date -dlast-monday +%Y%m%d)") ]; then 
+                if [ $(date +%s -d "$(cat ${newer_release_file} | grep -v multi)") -ge $(date +%s -d "$(date -dlast-monday +%Y%m%d)") ]; then 
                     echo "yes"
                 fi
             ''').trim()

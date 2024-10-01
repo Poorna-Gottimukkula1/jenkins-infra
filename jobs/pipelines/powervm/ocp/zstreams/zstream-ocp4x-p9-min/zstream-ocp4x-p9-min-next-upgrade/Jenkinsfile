@@ -260,13 +260,16 @@ pipeline {
                     archiveAllArtifacts("deploy/vars.tfvars", "cpu-pre.pprof", "heap-pre.pprof", "prometheus.tar.gz", "deploy/cron.log")
                     storeMustGatherLogs()
                     checkInfraError()
-                    notifyBySlack(currentBuild.result, env.MESSAGE)
                 }
                 catch (err){
                     echo 'Error ! Always block failed!'
                 }
                 finally{
                     cleanupOcp4Cluster()
+                    // Only notify if the build was not aborted or canceled
+                    if (currentBuild.result != 'ABORTED') {
+                        notifyBySlack(currentBuild.result, env.MESSAGE)
+                    }
                     cleanWs()
                 }
             }

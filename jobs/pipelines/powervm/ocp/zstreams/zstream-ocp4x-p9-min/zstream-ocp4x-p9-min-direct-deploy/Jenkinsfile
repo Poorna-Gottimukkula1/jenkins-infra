@@ -242,13 +242,16 @@ pipeline {
                     storeMustGatherLogs()
                     checkInfraError()
                     processE2eResults()
-                    notifyBySlack(currentBuild.result, env.MESSAGE)
                 }
                 catch (err){
                     echo 'Error ! Always block failed!' 
                 }
                 finally{
                     cleanupOcp4Cluster()
+                    // Only notify if the build was not aborted or canceled
+                    if (currentBuild.result != 'ABORTED') {
+                        notifyBySlack(currentBuild.result, env.MESSAGE)
+                    }
                     cleanWs()
                 }
             }
