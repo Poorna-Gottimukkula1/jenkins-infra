@@ -87,9 +87,13 @@ pipeline {
                         env.REDHAT_RELEASE = "9.3"
                         env.GOLANG_TARBALL = "https://golang.org/dl/go1.22.0.linux-ppc64le.tar.gz"
                     }
-                    else {
+                    else if (env.OCP_RELEASE == "4.16"){
                         env.REDHAT_RELEASE = "9.4"
                         env.GOLANG_TARBALL = "https://golang.org/dl/go1.22.0.linux-ppc64le.tar.gz"
+                    }
+                    else {
+                        env.REDHAT_RELEASE = "9.4"
+                        env.GOLANG_TARBALL = "https://golang.org/dl/go1.22.4.linux-ppc64le.tar.gz"
                     }
                 }
             }
@@ -135,6 +139,9 @@ pipeline {
                             echo "CURRENT build is empty"
                             throw err
                         }
+
+                        currentBuild.description = "OCP Build: ${env.OPENSHIFT_IMAGE.split(':')[1].trim()}"
+
                         if (fileExists("deploy/artifactory/cicd-rhcos-${OCP_RELEASE}.latest.txt")) {
                             env.RHCOS_IMAGE = readFile "deploy/artifactory/cicd-rhcos-${OCP_RELEASE}.latest.txt"
                             env.RHCOS_IMAGE_NAME = env.RHCOS_IMAGE.split()[0].trim()
@@ -242,13 +249,16 @@ pipeline {
                     storeMustGatherLogs()
                     checkInfraError()
                     processE2eResults()
-                    notifyBySlack(currentBuild.result, env.MESSAGE)
                 }
                 catch (err){
                     echo 'Error ! Always block failed!' 
                 }
                 finally{
                     cleanupOcp4Cluster()
+                    // Only notify if the build was not aborted or canceled
+                    if (currentBuild.result != 'ABORTED') {
+                        notifyBySlack(currentBuild.result, env.MESSAGE)
+                    }
                     cleanWs()
                 }
             }
