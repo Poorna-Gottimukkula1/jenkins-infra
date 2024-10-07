@@ -11,7 +11,6 @@ pipeline {
         copyArtifactPermission('*');
     }
     environment {
-        //users and credentials. All must be defined in Jenkins Credentials
         ARTIFACTORY_USER = credentials('ARTIFACTORY_USER')
         ARTIFACTORY_TOKEN = credentials('ARTIFACTORY_TOKEN')
         CI_OCP_TOKEN = credentials('CI_OCP_TOKEN')
@@ -24,18 +23,15 @@ pipeline {
                     ansiColor('xterm') {
                         echo ""
                     }
-                    try
-                    {
-                    sh '''
-                        cd ${WORKSPACE}/scripts
-                        nerdctl login -u ${ARTIFACTORY_USER} -p ${ARTIFACTORY_TOKEN} ${DOCKER_REGISTRY}
-                        #oc login --token=${CI_OCP_TOKEN} --server=https://api.ci.l2s4.p1.openshiftapps.com:6443
-                        #oc registry login --skip-check --registry-config ~/.docker/config.json
-                        #./mirror-images.sh || true
-                    '''
-                    }
-                    catch (err)
-                    {
+                    try {
+                        sh '''
+                            cd ${WORKSPACE}/scripts
+                            nerdctl login -u ${ARTIFACTORY_USER} -p ${ARTIFACTORY_TOKEN} ${DOCKER_REGISTRY}
+                            #oc login --token=${CI_OCP_TOKEN} --server=https://api.ci.l2s4.p1.openshiftapps.com:6443
+                            #oc registry login --skip-check --registry-config ~/.docker/config.json
+                            #./mirror-images.sh || true
+                        '''
+                    } catch (err) {
                         echo 'Error ! Mirroring Failed!'
                         throw err
                     }
@@ -49,72 +45,61 @@ pipeline {
                     ansiColor('xterm') {
                         echo ""
                     }
-                    try
-                    {
-                    sh '''
-                    curl https://openshift-release-multi.apps.ci.l2s4.p1.openshiftapps.com/ > builds.raw.txt
-                    cat builds.raw.txt | grep -A 2 '<td class="text-monospace"' | grep -v '^--' | awk 'NR%3{printf "%s ",$0;next;}1'|grep -v 'Failed' |sed 's|\\([^/]*/\\)\\{4\\}[^>]*>\\([^>]*\\).*title[^"]*"\\([^"]*\\).*|\\2  \\3|' | sed 's/<\\/a//'| sort -k2 -r > raw-all-builds.txt
+                    try {
+                        sh '''
+                            curl https://openshift-release-ppc64le.apps.ci.l2s4.p1.openshiftapps.com/ > builds-ppc64le.raw.txt
+                            curl https://openshift-release-multi.apps.ci.l2s4.p1.openshiftapps.com/ > builds-multi.raw.txt
+                            cat builds-ppc64le.raw.txt | grep -A 2 '<td class="text-monospace"' | grep -v '^--' | awk 'NR%3{printf "%s ",$0;next;}1'|grep -v 'Failed' |sed 's|\\([^/]*/\\)\\{4\\}[^>]*>\\([^>]*\\).*title[^"]*"\\([^"]*\\).*|\\2  \\3|' | sed 's/<\\/a//'| sort -k2 -r |awk -v registry="${DOCKER_REGISTRY}" '{print registry"/ocp-ppc64le/release-ppc64le:"$0}' > all-builds-ppc64le.txt
+                            cat builds-multi.raw.txt | grep -A 2 '<td class="text-monospace"' | grep -v '^--' | awk 'NR%3{printf "%s ",$0;next;}1'|grep -v 'Failed' |sed 's|\\([^/]*/\\)\\{4\\}[^>]*>\\([^>]*\\).*title[^"]*"\\([^"]*\\).*|\\2  \\3|' | sed 's/<\\/a//'| sort -k2 -r > all-builds-multi.txt
+                            
+                            # Iterate through each build and determine the correct Quay tag
+                            for build in $(cat all-builds-multi.txt| awk '{print $1}'); do
+                                if echo $build | grep -q "nightly"; then
+                                    echo "quay.io/openshift-release-dev/ocp-release-nightly:${build}" >> all-builds-multi-quay.txt
+                                else
+                                    if echo $build | grep -q "multi"; then
+                                        echo "quay.io/openshift-release-dev/ocp-release:${build}" >> all-builds-multi-quay.txt
+                                    else
+                                        echo "quay.io/openshift-release-dev/ocp-release:${build}-multi" >> all-builds-multi-quay.txt
+                                    fi
+                                fi
+                            done
 
-                    for build in $(cat raw-all-builds.txt|awk '{print $1}'); do
-                      if echo $build | grep -q "nightly"; then
-                        echo quay.io/openshift-release-dev/ocp-release-nightly:${build} >> all-builds.txt
-                      else
-                        if echo $build | grep -q "multi"; then
-                            echo quay.io/openshift-release-dev/ocp-release:${build} >> all-builds.txt
-                        else
-                            echo quay.io/openshift-release-dev/ocp-release:${build}-multi >> all-builds.txt
-                        fi
-                      fi
-                    done
-                    grep '4\\.11\\.[0-9]\\?[0-9]' all-builds.txt  > all-4.11-builds.txt
-                    grep '4\\.12\\.[0-9]\\?[0-9]' all-builds.txt  > all-4.12-builds.txt
-                    grep '4\\.13\\.[0-9]\\?[0-9]' all-builds.txt  > all-4.13-builds.txt
-                    grep '4\\.14\\.[0-9]\\?[0-9]' all-builds.txt  > all-4.14-builds.txt
-                    grep '4\\.15\\.[0-9]\\?[0-9]' all-builds.txt  > all-4.15-builds.txt
-                    grep '4\\.16\\.[0-9]\\?[0-9]' all-builds.txt  > all-4.16-builds.txt
-                    grep '4\\.17\\.[0-9]\\?[0-9]' all-builds.txt  > all-4.17-builds.txt
-                    grep '4\\.18\\.[0-9]\\?[0-9]' all-builds.txt  > all-4.18-builds.txt
+                            for version in 11 12 13 14 15 16 17; do
+                                echo "processing vesion 4.$version"
+                                grep "4\\.$version\\.[0-9]\\?[0-9]" all-builds-multi-quay.txt  > all-4.$version-builds-multi.txt
+                                grep "4\\.$version\\.[0-9]\\?[0-9]" all-builds-ppc64le.txt  > all-4.$version-builds-ppc64le.txt
 
-                    #Latest Builds
-                    cat all-4.11-builds.txt|head -n 1|awk '{print $1}' > latest-4.11-build.txt
-                    cat all-4.12-builds.txt|head -n 1|awk '{print $1}' > latest-4.12-build.txt
-                    cat all-4.13-builds.txt|head -n 1|awk '{print $1}' > latest-4.13-build.txt
-                    cat all-4.14-builds.txt|head -n 1|awk '{print $1}' > latest-4.14-build.txt
-                    cat all-4.15-builds.txt|head -n 1|awk '{print $1}' > latest-4.15-build.txt
-                    cat all-4.16-builds.txt|head -n 1|awk '{print $1}' > latest-4.16-build.txt
-                    cat all-4.17-builds.txt|head -n 1|awk '{print $1}' > latest-4.17-build.txt
-                    cat all-4.18-builds.txt|head -n 1|awk '{print $1}' > latest-4.18-build.txt
+                                # Create latest files for multi and ppc64le
+                                cat all-4.$version-builds-multi.txt | head -n 1 | awk '{print $1}' > latest-4.$version-build-multi.txt
+                                cat all-4.$version-builds-ppc64le.txt | head -n 1 | awk '{print $1}' > latest-4.$version-build-ppc64le.txt
+                                
+                                cat all-4.$version-builds-multi.txt
 
-                    #All stable Builds
-                    cat all-4.11-builds.txt | grep -v 'nightly\\|-rc\\|-fc\\|-ec' > all-4.11-stable-builds.txt
-                    cat all-4.12-builds.txt | grep -v 'nightly\\|-rc\\|-fc\\|-ec' > all-4.12-stable-builds.txt
-                    cat all-4.13-builds.txt | grep -v 'nightly\\|-rc\\|-fc\\|-ec' > all-4.13-stable-builds.txt
-                    cat all-4.14-builds.txt | grep -v 'nightly\\|-rc\\|-fc\\|-ec' > all-4.14-stable-builds.txt
-                    cat all-4.15-builds.txt | grep -v 'nightly\\|-rc\\|-fc\\|-ec' > all-4.15-stable-builds.txt
-                    cat all-4.16-builds.txt | grep -v 'nightly\\|-rc\\|-fc\\|-ec' > all-4.16-stable-builds.txt
-                    cat all-4.14-builds.txt | grep '\\-rc' > all-4.14-rc-builds.txt
-                    cat all-4.15-builds.txt | grep '\\-rc' > all-4.15-rc-builds.txt
-                    cat all-4.16-builds.txt | grep '\\-rc' > all-4.16-rc-builds.txt
-                    cat all-4.17-builds.txt | grep '\\-rc' > all-4.17-rc-builds.txt
-                    cat all-4.18-builds.txt | grep '\\-ec' > all-4.18-ec-builds.txt
+                                # Create stable and rc/ec files
+                                cat all-4.$version-builds-multi.txt | grep -v 'nightly\\|-rc\\|-fc\\|-ec' > all-4.$version-stable-builds-multi.txt
+                                cat all-4.$version-builds-ppc64le.txt | grep -v 'nightly\\|-rc\\|-fc\\|-ec' > all-4.$version-stable-builds-ppc64le.txt
 
+                                cat all-4.$version-builds-multi.txt | grep '\\-rc' > all-4.$version-rc-builds-multi.txt
+                                cat all-4.$version-builds-ppc64le.txt | grep '\\-rc' > all-4.$version-rc-builds-ppc64le.txt
+                                
+                                # Create latest stable and rc files
+                                cat all-4.$version-stable-builds-multi.txt | head -n 1 | awk '{print $1}' > latest-4.$version-stable-build-multi.txt
+                                cat all-4.$version-stable-builds-ppc64le.txt | head -n 1 | awk '{print $1}' > latest-4.$version-stable-build-ppc64le.txt
 
-                    #Latest stable build
-                    cat all-4.11-stable-builds.txt |head -n 1|awk '{print $1}' > latest-4.11-stable-build.txt
-                    cat all-4.12-stable-builds.txt |head -n 1|awk '{print $1}' > latest-4.12-stable-build.txt
-                    cat all-4.13-stable-builds.txt |head -n 1|awk '{print $1}' > latest-4.13-stable-build.txt
-                    cat all-4.14-stable-builds.txt |head -n 1|awk '{print $1}' > latest-4.14-stable-build.txt
-                    cat all-4.15-stable-builds.txt |head -n 1|awk '{print $1}' > latest-4.15-stable-build.txt
-                    cat all-4.16-stable-builds.txt |head -n 1|awk '{print $1}' > latest-4.16-stable-build.txt
-                    cat all-4.14-rc-builds.txt |head -n 1|awk '{print $1}' > latest-4.14-rc-build.txt
-                    cat all-4.15-rc-builds.txt |head -n 1|awk '{print $1}' > latest-4.15-rc-build.txt
-                    cat all-4.16-rc-builds.txt |head -n 1|awk '{print $1}' > latest-4.16-rc-build.txt
-                    cat all-4.17-rc-builds.txt |head -n 1|awk '{print $1}' > latest-4.17-rc-build.txt
-                    cat all-4.18-ec-builds.txt |head -n 1|awk '{print $1}' > latest-4.18-ec-build.txt
-                    '''
-                    }
-                    catch (err)
-                    {
+                                cat all-4.$version-rc-builds-multi.txt | head -n 1 | awk '{print $1}' > latest-4.$version-rc-build-multi.txt
+                                cat all-4.$version-rc-builds-ppc64le.txt | head -n 1 | awk '{print $1}' > latest-4.$version-rc-build-ppc64le.txt
+                            done
+                            pre_release_version=4.18
+                            grep "${pre_release_version}\\.[0-9]\\?[0-9]" all-builds-multi-quay.txt  > all-${pre_release_version}-builds-multi.txt
+                            grep "${pre_release_version}\\.[0-9]\\?[0-9]" all-builds-ppc64le.txt  > all-${pre_release_version}-builds-ppc64le.txt
+                            grep "${pre_release_version}\\.[0-9]\\?[0-9]-ec" all-${pre_release_version}-builds-multi.txt > all-${pre_release_version}-ec-builds-multi.txt
+                            grep "${pre_release_version}\\.[0-9]\\?[0-9]-ec" all-${pre_release_version}-builds-ppc64le.txt > all-${pre_release_version}-ec-builds-ppc64le.txt
+                            cat all-${pre_release_version}-ec-builds-multi.txt | head -n 1 | awk '{print $1}' > latest-${pre_release_version}-ec-build-multi.txt
+                            cat all-${pre_release_version}-ec-builds-ppc64le.txt | head -n 1 | awk '{print $1}' > latest-${pre_release_version}-ec-build-ppc64le.txt
+                            
+                        '''
+                    } catch (err) {
                         echo 'Error ! Download OCP Build info failed !'
                         env.FAILED_STAGE=env.STAGE_NAME
                         throw err
@@ -125,14 +110,11 @@ pipeline {
     }
     post {
         always {
-            archiveAllArtifacts("builds.raw.txt", "all-builds.txt", "all-4.11-builds.txt", "all-4.12-builds.txt", "all-4.13-builds.txt",
-                                  "all-4.14-builds.txt", "all-4.15-builds.txt", "all-4.16-builds.txt", "all-4.17-builds.txt", "all-4.18-builds.txt",
-                                  "latest-4.11-build.txt","latest-4.12-build.txt", "latest-4.13-build.txt",
-                                  "latest-4.14-build.txt", "latest-4.15-build.txt", "latest-4.16-build.txt", "latest-4.17-build.txt", "latest-4.18-build.txt",
-                                  "all-4.11-stable-builds.txt","all-4.12-stable-builds.txt","all-4.13-stable-builds.txt", "all-4.14-stable-builds.txt", "all-4.15-stable-builds.txt", "all-4.16-stable-builds.txt",
-                                  "all-4.14-rc-builds.txt", "all-4.15-rc-builds.txt", "all-4.16-rc-builds.txt", "all-4.17-rc-builds.txt",
-                                  "latest-4.11-stable-build.txt", "latest-4.12-stable-build.txt","latest-4.13-stable-build.txt", "latest-4.14-stable-build.txt", "latest-4.15-stable-build.txt", "latest-4.16-stable-build.txt",
-                                  "latest-4.14-rc-build.txt", "latest-4.15-rc-build.txt", "latest-4.16-rc-build.txt", "latest-4.17-rc-build.txt", "latest-4.18-ec-build.txt")
+            archiveAllArtifacts("builds.raw.txt", "all-builds-multi.txt", "all-builds-ppc64le.txt", 
+                                "latest-4.*-build-multi.txt", "latest-4.*-build-ppc64le.txt", "all-4.*-builds-ppc64le.txt" , "all-4.*-builds-multi.txt" ,
+                                "all-4.*-stable-builds-multi.txt", "all-4.*-stable-builds-ppc64le.txt", 
+                                "all-4.*-rc-builds-multi.txt", "all-4.*-rc-builds-ppc64le.txt", 
+                                "all-4.*-ec-builds-multi.txt", "all-4.*-ec-builds-ppc64le.txt")
             cleanWs()
         }
     }
