@@ -52,7 +52,7 @@ pipeline {
     stages {
         stage('Clone ansible extra') {
             steps {
-                cloneRepo("https://github.com/ocp-power-automation/ocp4-playbooks-extras", "ocp4-playbooks-extras", "*/main")
+                cloneRepo("https://github.com/Poorna-Gottimukkula1/ocp4-playbooks-extras", "ocp4-playbooks-extras", "*/fix-4.18-e2e")
             }
         }
         stage('Setup Common Environment Variables') {
