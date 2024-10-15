@@ -1,5 +1,5 @@
-def call(){
-    withCredentials([string(credentialsId: 'AI_PULL_SECRET', variable: 'FILE')]) {
+def call(String secret='PULL_SECRET'){
+    withCredentials([string(credentialsId: secret, variable: 'FILE')]) {
         sh 'set +x; echo  $FILE > $PULL_SECRET_FILE'
     }
 }
