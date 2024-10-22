@@ -134,7 +134,7 @@ pipeline {
                             echo "Cluster cant deploy without master"
                             throw err
                         }
-                        currentBuild.description = "Upgrade OCP: ${env.OCP_RELEASE_TAG}-${env.OCP_UPGRADE_RELEASE_TAG}"
+                        currentBuild.description = "Upgrade OCP: ${env.OCP_RELEASE_TAG} to ${env.OCP_UPGRADE_RELEASE_TAG}"
                         createTemplate(env.OS_AUTH_URL, env.MASTER_VCPUS , "${MASTER_MEMORY_MB}", env.MASTER_PROCESSORS, env.MASTER_TEMPLATE)
                         createTemplate(env.OS_AUTH_URL, env.WORKER_VCPUS , "${WORKER_MEMORY_MB}", env.WORKER_PROCESSORS, env.WORKER_TEMPLATE)
                         createTemplate(env.OS_AUTH_URL, env.BASTION_VCPUS , "${BASTION_MEMORY_MB}", env.BASTION_PROCESSORS, env.BASTION_TEMPLATE)

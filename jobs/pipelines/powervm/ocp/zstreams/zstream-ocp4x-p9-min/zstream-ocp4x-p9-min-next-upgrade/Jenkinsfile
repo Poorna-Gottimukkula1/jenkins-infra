@@ -161,7 +161,7 @@ pipeline {
                             throw err
                         }
 
-                        currentBuild.description = "Upgrade OCP from ${env.OPENSHIFT_IMAGE.split(':')[1].trim()} to ${env.UPGRADE_IMAGE.split(':')[1].trim()}"
+                        currentBuild.description = "Upgrade OCP: ${env.OPENSHIFT_IMAGE.split(':')[1].trim()} to ${env.UPGRADE_IMAGE.split(':')[1].trim()}"
 
                         if (fileExists("deploy/artifactory/cicd-rhcos-${OCP_RELEASE}.latest.txt")) {
                             env.RHCOS_IMAGE = readFile "deploy/artifactory/cicd-rhcos-${OCP_RELEASE}.latest.txt"
