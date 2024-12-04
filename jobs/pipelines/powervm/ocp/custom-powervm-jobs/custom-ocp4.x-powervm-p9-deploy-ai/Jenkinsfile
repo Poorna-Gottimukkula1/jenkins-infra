@@ -166,10 +166,8 @@ pipeline {
                         }
                         if (fileExists("deploy/artifactory/cicd-rhel-${REDHAT_RELEASE}.latest.txt")) {
                             env.BASTION_IMAGE = readFile "deploy/artifactory/cicd-rhel-${REDHAT_RELEASE}.latest.txt"
-                            //env.BASTION_IMAGE_NAME = env.BASTION_IMAGE.split()[0].trim()
-                            env.BASTION_IMAGE_NAME = "cicd-centos-9-stream-05152023"
-                            //env.BASTION_IMAGE_ID = env.BASTION_IMAGE.split()[1].trim()
-                            env.BASTION_IMAGE_ID = "a7286e02-d4bb-48ad-afba-8f0fe15630bc"
+                            env.BASTION_IMAGE_NAME = env.BASTION_IMAGE.split()[0].trim()
+                            env.BASTION_IMAGE_ID = env.BASTION_IMAGE.split()[1].trim()
                         }
                         else {
                             echo "cicd-rhel-${REDHAT_RELEASE}.latest.txt file does not exist. Please check poll-powervc-images job"
