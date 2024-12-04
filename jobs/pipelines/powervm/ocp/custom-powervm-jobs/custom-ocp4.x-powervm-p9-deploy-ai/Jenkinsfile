@@ -101,7 +101,8 @@ pipeline {
                         env.NUM_OF_MASTERS = "1"
                         env.NUM_OF_WORKERS = "0"
                     }
-                    env.INSTANCE_NAME = "rdr-cicd-${AI_INSTALL_TYPE}"
+                    env.INSTANCE_NAME = "${AI_INSTALL_TYPE}"
+                    env.CLUSTER_DOMAIN = "redhat.com"
                     //env.SCG_ID = "ba9df88e-d1ba-41ec-a8d9-ec0fd7af7594"
                     if ( ENABLE_MULTI == "true") {
                         env.OPENSHIFT_INSTALL_TARBALL="https://mirror.openshift.com/pub/openshift-v4/multi/clients/ocp-dev-preview/candidate-${OCP_RELEASE}/ppc64le/openshift-install-linux.tar.gz"
