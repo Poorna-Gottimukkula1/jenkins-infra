@@ -1,0 +1,76 @@
+@Library('jenkins-upstream-library') _
+
+pipeline {
+    agent {
+        docker {
+            image 'quay.io/powercloud/inbound-agent:4.10-3.3'
+            args '-v /etc/resolv.conf:/etc/resolv.conf'
+            label 'jump-vpc-x86_64'
+        }
+    }
+
+    stages {
+        stage('Run Daily Build Update Script'){
+            steps{
+                script {
+                    try {
+                        sh '''
+                            #!/bin/bash
+                            if command -v python3 &>/dev/null; then
+                                echo "Python3 installed"
+                            else
+                                sudo apt-get install -y python3
+                            fi
+                            
+                            if command -v pip &>/dev/null; then
+                                echo "pip installed"
+                            else
+                                sudo apt-get install -y python3-pip
+                                 
+                            fi
+                            sudo pip install virtualenv
+                            echo "Clone ci monitoring repo"
+                            git clone https://github.com/ocp-power-automation/ci-monitoring-automation.git
+                            
+                            echo "Activate virtualenv"
+                            cd ci-monitoring-automation
+                            virtualenv venv
+                            . ./venv/bin/activate
+                            
+                            pip install -r requirements.txt
+                            
+                            echo "Executing daily build update script"
+                            python3 CI_DailyBuildUpdates.py > output.txt
+                            python3 CI_DailyBuildUpdates.py --info_type detailed > output_detailed.txt
+                            cat ./output.txt
+                            echo "====================="
+                            cat ./output_detailed.txt
+                        '''
+                    }
+                    catch (err){
+                            echo 'Error ! Failed while running CI_DailyBuildUpdates script'
+                            env.FAILED_STAGE=env.STAGE_NAME
+                            throw err
+                    }
+                }
+           }
+        }
+
+    }
+    
+    post {
+        always {
+            archiveAllArtifacts("ci-monitoring-automation/output.txt", "ci-monitoring-automation/output_detailed.txt")
+            script{
+                def fileContent = readFile 'ci-monitoring-automation/output.txt'
+                if ( env.FAILED_STAGE ) {
+                    slackSend(channel: "#ocp-prod-prow-ci-job-status", color: "#d91309", message: "*_FAILED_*: `${env.JOB_NAME}` #${env.BUILD_NUMBER}: (<${env.BUILD_URL}|Open>) \n *Prod Prow CI Jobs Summary* ```\n NO DATA \n```", sendAsText: true)
+                } else {
+                    slackSend(channel: "#ocp-prod-prow-ci-job-status", color: "#006e23", message: "*_SUCCESS_*: `${env.JOB_NAME}` #${env.BUILD_NUMBER}: (<${env.BUILD_URL}|Open>) \n *Prod Prow CI Jobs Summary* ```\n${fileContent}\n```", sendAsText: true)
+                }
+            }
+            cleanWs()
+        }
+    }
+
+}
