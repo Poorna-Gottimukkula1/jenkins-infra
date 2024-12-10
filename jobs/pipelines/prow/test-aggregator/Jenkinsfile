@@ -1,0 +1,107 @@
+@Library('jenkins-upstream-library') _
+
+pipeline {
+    agent {
+        docker {
+            image 'quay.io/powercloud/inbound-agent:4.10-3.3'
+            args '-v /etc/resolv.conf:/etc/resolv.conf'
+            label 'jump-vpc-x86_64'
+        }
+    }
+     parameters {
+         string(defaultValue: '10', description: '''
+         Select one CI from the following 
+         1  4.11 libvirt
+         2  4.11 to 4.12 upgrade
+         3  4.12 libvirt
+         4  4.12 to 4.13 upgrade
+         5  4.12 heavy build
+         6  4.13 libvirt
+         7  4.13 powervs
+         8  4.13 to 4.14 upgrade
+         9  4.13 heavy build
+         10  4.14 libvirt
+         11  4.14 powervs
+         12  4.14 to 4.15 upgrade
+         13  4.14 heavy build
+         14  4.15 libvirt
+         15  4.15 powervs original
+         16  4.15 powervs siguid
+         17  4.15 heavy build
+         18  4.15 to 4.16 upgrade
+         19  4.16 libvirt
+         20  4.16 powervs
+         21  4.16 heavy build
+         22  4.16 powervs capi
+         23  4.14 MCE
+         24  4.15 MCE
+         25  4.16 MCE
+         26  4.14 SNO
+         27  All the above
+         ''' , name: 'SelectedCI')
+         string(defaultValue: 'registry.ci.openshift.org/ocp-ppc64le/release-ppc64le:4.14.0-0.nightly-ppc64le-2024-05-23-093359', description: 'Enter the payload name', name: 'Nightly')
+     }
+    stages {
+        stage('Run Daily Build Update Script'){
+            steps{
+                script {
+                    try {
+                        sh '''
+                            #!/bin/bash
+                            if command -v python3 &>/dev/null; then
+                                echo "Python3 installed"
+                            else
+                                sudo apt-get install -y python3
+                            fi
+                            
+                            if command -v pip &>/dev/null; then
+                                echo "pip installed"
+                            else
+                                sudo apt-get install -y python3-pip
+                                 
+                            fi
+                            sudo pip install virtualenv
+                            echo "Clone ci monitoring repo"
+                            git clone https://github.com/ocp-power-automation/ci-monitoring-automation.git
+                            
+                            echo "Activate virtualenv"
+                            cd ci-monitoring-automation
+                            virtualenv venv
+                            . ./venv/bin/activate
+                            
+                            pip install -r requirements.txt
+                            
+                            echo "Executing daily x script"
+                            cat config.ini
+                            echo "========================="
+
+                            sed -i "s/False/True/g" config.ini
+                            sed -i "s/__CI__/$SelectedCI/g" config.ini
+                            sed -i "s#__NIGHTLY__#${Nightly}#g" config.ini
+                            cat config.ini
+                            echo "========================="
+                            python3 aggregate.py > output.txt
+                         
+                            cat ./output.txt
+                            
+                        '''
+                    }
+                    catch (err){
+                            echo 'Error ! Failed while running x script'
+                            env.FAILED_STAGE=env.STAGE_NAME
+                            throw err
+                    }
+                }
+           }
+        }
+
+    }
+    
+    post {
+        always {
+            archiveAllArtifacts("ci-monitoring-automation/output.txt")
+            cleanWs()
+        }
+    }
+
+}

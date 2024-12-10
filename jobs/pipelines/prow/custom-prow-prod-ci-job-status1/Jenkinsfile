@@ -1,0 +1,126 @@
+@Library('jenkins-upstream-library') _
+
+pipeline {
+    agent {
+        docker {
+            image 'quay.io/powercloud/inbound-agent:4.10-3.3'
+            args '-v /etc/resolv.conf:/etc/resolv.conf'
+            label 'jump-vpc-x86_64'
+        }
+    }
+    parameters {
+        string(defaultValue: '27', description: '''
+        Enter the following CI numbers separated by commas to query (e.g., 14,15,16)
+        1  4.11 libvirt
+        2  4.11 to 4.12 upgrade
+        3  4.12 libvirt
+        4  4.12 to 4.13 upgrade
+        5  4.12 heavy build
+        6  4.13 libvirt
+        7  4.13 powervs
+        8  4.13 to 4.14 upgrade
+        9  4.13 heavy build
+        10  4.14 libvirt
+        11  4.14 powervs
+        12  4.14 to 4.15 upgrade
+        13  4.14 heavy build
+        14  4.15 libvirt
+        15  4.15 powervs original
+        16  4.15 powervs siguid
+        17  4.15 heavy build
+        18  4.15 to 4.16 upgrade
+        19  4.16 libvirt
+        20  4.16 powervs
+        21  4.16 heavy build
+        22  4.16 powervs capi
+        23  4.14 MCE
+        24  4.15 MCE
+        25  4.16 MCE
+        26  4.14 SNO
+        27  All the above
+        ''' , name: 'SelectedCI')
+        string(defaultValue: '2024-1-1', description: 'Enter the from date from where you want to get the details as yyyy-mm-dd format (e.g., 2023-12-13 )', name: 'StartDate')
+        string(defaultValue: '2024-1-2', description: 'Enter the last date till where you want to get the details as yyyy-mm-dd format (e.g., 2023-12-16 )', name: 'EndDate')
+        choice(description: '''
+        Select the query option from the following
+        1. Check Node Crash
+        2. Brief Job information
+        3. Detailed Job information
+        4. Failed testcases
+        5. Get builds with testcase failure
+        6. Get testcase failure frequency
+        ''', choices: ['3','1','2', '4', '5', '6'], name: 'QueryOption')
+        string(defaultValue: '', description: 'Enter the Testcase name (e.g., [sig-node] static pods should start after being created )', name: 'TestcaseName')
+    }
+    // environment {
+    //     //Parameters
+    //     SELECTED_CI = "${params.SelectedCI}"
+    //     BEFORE_DATE = "${params.EndDate}"
+    //     AFTER_DATE = "${params.StartDate}"
+    //     QUERY_OPTION = "${params.QueryOption}"
+    //  }
+    stages {
+        stage('Run Daily Build Update Script'){
+            steps{
+                script {
+                    try {
+                        sh '''
+                            #!/bin/bash
+                            if command -v python3 &>/dev/null; then
+                                echo "Python3 installed"
+                            else
+                                sudo apt-get install -y python3
+                            fi
+                            
+                            if command -v pip &>/dev/null; then
+                                echo "pip installed"
+                            else
+                                sudo apt-get install -y python3-pip
+                                 
+                            fi
+                            sudo pip install virtualenv
+                            echo "Clone ci monitoring repo"
+                            git clone https://github.com/SurajGudaji/ci-monitoring-automation.git --branch capi
+                            
+                            echo "Activate virtualenv"
+                            cd ci-monitoring-automation
+                            virtualenv venv
+                            . ./venv/bin/activate
+                            
+                            pip install -r requirements.txt
+                            
+                            echo "Executing daily build update script"
+                            cat config.ini
+                            echo "========================="
+
+                            sed -i "s/False/True/g" config.ini
+                            sed -i "s/__CI__/$SelectedCI/g" config.ini 
+                            sed -i "s/__BDATE__/${EndDate}/g" config.ini 
+                            sed -i "s/__ADATE__/${StartDate}/g" config.ini 
+                            sed -i "s/__QP__/${QueryOption}/g" config.ini
+                            sed -i "s#__TC__#${TestcaseName}#g" config.ini
+                            cat config.ini
+                            echo "========================="
+                            python3 CI_JobHistory.py > output.txt
+                            cat ./output.txt
+                        '''
+                    }
+                    catch (err){
+                            echo 'Error ! Failed while running CI_DailyBuildUpdates script'
+                            env.FAILED_STAGE=env.STAGE_NAME
+                            throw err
+                    }
+                }
+           }
+        }
+
+    }
+    
+    post {
+        always {
+            archiveAllArtifacts("ci-monitoring-automation/output.txt")
+            cleanWs()
+        }
+    }
+
+}
