@@ -13,9 +13,9 @@ pipeline {
         RESOURCE_GROUP="ibm-internal-cicd-resource-group"
         BASEDOMAIN="ppc64le-cloud.cis.ibm.net"
         CLUSTER_DIR="./ipi-install"
-        OCP_RELEASE = "4.16"
-        OPENSHIFT_CLIENT_TARBALL_AMD64="https://mirror.openshift.com/pub/openshift-v4/amd64/clients/ocp/latest-${OCP_RELEASE}/openshift-client-linux.tar.gz"
-        OPENSHIFT_INSTALLER_URL="https://mirror.openshift.com/pub/openshift-v4/amd64/clients/ocp/latest-${OCP_RELEASE}/openshift-install-linux.tar.gz"
+        OCP_RELEASE = "4.19"
+        OPENSHIFT_CLIENT_TARBALL_AMD64="https://mirror.openshift.com/pub/openshift-v4/amd64/clients/ocp-dev-preview/candidate-${OCP_RELEASE}/openshift-client-linux.tar.gz"
+        OPENSHIFT_INSTALLER_URL="https://mirror.openshift.com/pub/openshift-v4/amd64/clients/ocp-dev-preview/candidate-${OCP_RELEASE}/openshift-install-linux.tar.gz"
         PVSADM_VERSION = "v0.1.15"
 	 }
     stages {
