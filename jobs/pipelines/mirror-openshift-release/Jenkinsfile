@@ -68,7 +68,6 @@ pipeline {
                     cat all-4.15-builds.txt | grep '\\-rc' > all-4.15-rc-builds.txt
                     cat all-4.16-builds.txt | grep '\\-rc' > all-4.16-rc-builds.txt
                     cat all-4.17-builds.txt | grep '\\-rc' > all-4.17-rc-builds.txt
-                    cat all-4.18-builds.txt | grep '\\-ec' > all-4.18-ec-builds.txt
                     cat all-4.18-builds.txt | grep '\\-rc' > all-4.18-rc-builds.txt
                     cat all-4.19-builds.txt | grep '\\-ec' > all-4.19-ec-builds.txt
 
@@ -85,7 +84,6 @@ pipeline {
                     cat all-4.15-rc-builds.txt |head -n 1|awk '{print $1}' > latest-4.15-rc-build.txt
                     cat all-4.16-rc-builds.txt |head -n 1|awk '{print $1}' > latest-4.16-rc-build.txt
                     cat all-4.17-rc-builds.txt |head -n 1|awk '{print $1}' > latest-4.17-rc-build.txt
-                    cat all-4.18-ec-builds.txt |head -n 1|awk '{print $1}' > latest-4.18-ec-build.txt
                     cat all-4.18-rc-builds.txt |head -n 1|awk '{print $1}' > latest-4.18-rc-build.txt
                     cat all-4.19-ec-builds.txt |head -n 1|awk '{print $1}' > latest-4.19-ec-build.txt
                     '''
@@ -109,7 +107,7 @@ pipeline {
                                   "all-4.11-stable-builds.txt","all-4.12-stable-builds.txt","all-4.13-stable-builds.txt", "all-4.14-stable-builds.txt", "all-4.15-stable-builds.txt", "all-4.16-stable-builds.txt",  "all-4.17-stable-builds.txt",
                                   "all-4.14-rc-builds.txt", "all-4.15-rc-builds.txt", "all-4.16-rc-builds.txt", "all-4.17-rc-builds.txt", "all-4.18-rc-builds.txt",
                                   "latest-4.11-stable-build.txt", "latest-4.12-stable-build.txt","latest-4.13-stable-build.txt", "latest-4.14-stable-build.txt", "latest-4.15-stable-build.txt", "latest-4.16-stable-build.txt",  "latest-4.17-stable-build.txt",
-                                  "latest-4.14-rc-build.txt", "latest-4.15-rc-build.txt", "latest-4.16-rc-build.txt", "latest-4.17-rc-build.txt","latest-4.18-rc-build.txt", "latest-4.18-ec-build.txt", "latest-4.19-ec-build.txt")
+                                  "latest-4.14-rc-build.txt", "latest-4.15-rc-build.txt", "latest-4.16-rc-build.txt", "latest-4.17-rc-build.txt","latest-4.18-rc-build.txt", "latest-4.19-ec-build.txt")
             cleanWs()
         }
     }
