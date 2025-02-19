@@ -97,7 +97,7 @@ pipeline {
                                 sed -i "s|\\.Payload\\.cloudConnections\\[\\]|\\.cloudConnections\\[\\]|g" ./powervs-hack/scripts/create-cluster.sh
                                 sed -i "s|\\.Payload\\.jobs\\[\\]|\\.jobs\\[\\]|g" ./powervs-hack/scripts/create-cluster.sh
                                 sed -i "s|export OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE.*$|export OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE=\\"${OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE}\\"|g" ./powervs-hack/scripts/create-cluster.sh
-                                sed -i "s|export OPENSHIFT_INSTALL_OS_IMAGE_OVERRIDE.*$||g" ./powervs-hack/scripts/create-cluster.sh
+                                sed -i "s|#export OPENSHIFT_INSTALL_OS_IMAGE_OVERRIDE.*$|export OPENSHIFT_INSTALL_OS_IMAGE_OVERRIDE=\\"rhcos-powervs-images-${VPCREGION}/rhcos-418-94-202410090804-0-ppc64le-powervs.ova.gz\\"|g" ./powervs-hack/scripts/create-cluster.sh
                                 sed -i "s|platform: {}|platform: \\n    powervs:\\n      processors: \\"0.5\\"\\n      sysType: s1022|g" ./powervs-hack/scripts/create-cluster.sh
                             '''
                         currentBuild.description = "OCP Build: ${env.OPENSHIFT_INSTALL_RELEASE_VERSION}"
