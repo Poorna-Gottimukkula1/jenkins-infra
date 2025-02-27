@@ -18,6 +18,7 @@ def call(String region="us-south",resource_group="ibm-internal-cicd-resource-gro
             if [ "${POWERVS}" = "true" ] ; then
                 ibmcloud update -f
                 ibmcloud plugin update --all
+                ibmcloud plugin update power-iaas -v 1.4.0 #To override the latest version as it is having different output
                 curl -sL https://raw.githubusercontent.com/ppc64le-cloud/pvsadm/v0.1.15/get.sh | VERSION="v0.1.15" FORCE=1 bash
                 ibmcloud login -a cloud.ibm.com -r ${REGION} -g ${RESOURCE_GROUP} -q --apikey=${IBMCLOUD_API_KEY}
                 ibmcloud target -r ${REGION} -g ${RESOURCE_GROUP}
