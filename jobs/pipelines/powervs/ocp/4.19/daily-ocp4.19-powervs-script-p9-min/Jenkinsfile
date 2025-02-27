@@ -27,6 +27,8 @@ pipeline {
         BASTION_IMAGE_FILE = "latest-${BASTION_IMAGE}-rdr-ocp-cicd-montreal01.txt"
         RHCOS_IMAGE_FILE = "latest-${RHCOS_IMAGE}-rdr-ocp-cicd-montreal01.txt"
         OCP_RELEASE = "4.19"
+        OPENSHIFT_POWERVS_SCRIPT_GIT_TF_DEPLOY_PROJECT = "https://github.com/Poorna-Gottimukkula1/openshift-install-power.git"
+        OPENSHIFT_POWERVS_SCRIPT_GIT_TF_DEPLOY_BRANCH = "test-devil"
 
         //e2e specific variables
         ENABLE_E2E_TEST = "true"
