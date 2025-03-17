@@ -74,7 +74,7 @@ pipeline {
             steps {
                 script {
                     getArtifacts("mirror-openshift-release", "latest-${OCP_RELEASE}-stable-build.txt")
-                    getArtifacts("mirror-openshift-release", "latest-${UPGRADE_OCP_RELEASE}-ec-build.txt")
+                    getArtifacts("mirror-openshift-release", "latest-${UPGRADE_OCP_RELEASE}-stable-build.txt")
                     getArtifacts("powervm/poll-powervc-images", "cicd-rhcos-${OCP_RELEASE}.latest.txt")
                     getArtifacts("powervm/poll-powervc-images", "cicd-rhel-${REDHAT_RELEASE}.latest.txt")
                 }
@@ -102,13 +102,13 @@ pipeline {
                             throw err
                         }
                         env.UPGRADE_IMAGE  = ""
-                        if (fileExists("deploy/artifactory/latest-${UPGRADE_OCP_RELEASE}-ec-build.txt")) {
-                            env.UPGRADE_IMAGE = readFile "deploy/artifactory/latest-${UPGRADE_OCP_RELEASE}-ec-build.txt"
+                        if (fileExists("deploy/artifactory/latest-${UPGRADE_OCP_RELEASE}-stable-build.txt")) {
+                            env.UPGRADE_IMAGE = readFile "deploy/artifactory/latest-${UPGRADE_OCP_RELEASE}-stable-build.txt"
                             env.UPGRADE_IMAGE = env.UPGRADE_IMAGE.trim()
                             env.OCP_UPGRADE_RELEASE_TAG = env.UPGRADE_IMAGE.split(":")[1].trim()
                         }
                         else {
-                            echo "latest-${UPGRADE_OCP_RELEASE}-ec-build.txt file does not exist. Please check mirror-openshift-release job"
+                            echo "latest-${UPGRADE_OCP_RELEASE}-stable-build.txt file does not exist. Please check mirror-openshift-release job"
                             throw err
                         }
                         if (fileExists("deploy/artifactory/cicd-rhcos-${OCP_RELEASE}.latest.txt")) {
