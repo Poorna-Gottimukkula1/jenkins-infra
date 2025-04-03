@@ -2,8 +2,10 @@
 
 pipeline {
     agent {
-        kubernetes {
-            inheritFrom 'jenkins-agent'
+        docker {
+            image 'quay.io/powercloud/inbound-agent:3256.v88a_f6e922152-2-jdk17.1'
+            args '-v /etc/resolv.conf:/etc/resolv.conf -v /run/containerd/containerd.sock:/run/containerd/containerd.sock'
+            label 'jump-vpc-x86_64'
         }
     }
     environment {
@@ -42,9 +44,22 @@ pipeline {
         CLUSTER_DIR="./ipi-install"
         OPENSHIFT_CLIENT_TARBALL_AMD64="https://mirror.openshift.com/pub/openshift-v4/amd64/clients/ocp-dev-preview/candidate-4.19/openshift-client-linux.tar.gz"
         //OPENSHIFT_INSTALLER_URL="https://mirror.openshift.com/pub/openshift-v4/amd64/clients/ocp-dev-preview/candidate-4.19/openshift-install-linux.tar.gz"
+
+        ENABLE_E2E_TEST = "true"
+        GOLANG_TARBALL="https://dl.google.com/go/go1.22.1.linux-amd64.tar.gz"
+        E2E_GIT="https://github.com/openshift/origin"
+        E2E_BRANCH="release-${env.OCP_RELEASE}"
+        E2E_EXCLUDE_LIST="https://raw.github.ibm.com/redstack-power/e2e-exclude-list/${env.OCP_RELEASE}-powervm/ocp${env.OCP_RELEASE}_power_exclude_list_OVNKubernetes.txt"
+        ENABLE_E2E_UPGRADE="false"
+
         POWERVS = true
 	 }
     stages {
+        stage('Clone ansible extra') {
+            steps {
+                cloneRepo("https://github.com/Poorna-Gottimukkula1/ocp4-playbooks-extras", "ocp4-playbooks-extras", "*/e2e-test2")
+            }
+        }
         stage('pull artifact') {
             steps {
                 getArtifacts("mirror-openshift-release", "latest-${OCP_RELEASE}-build.txt" )
@@ -81,6 +96,7 @@ pipeline {
                                 cp -rf ${WORKSPACE}/deploy/id_rsa.pub ~/.ssh/id_installer_rsa.pub
                                 git clone https://github.com/Poorna-Gottimukkula1/powervs-hack.git
                                 oc adm release extract --tools ${OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE} --to openshift-tools -a ~/.pullSecret
+                                ls -la openshift-tools
                                 tar -xvf ./openshift-tools/openshift-install-linux-${OPENSHIFT_INSTALL_RELEASE_VERSION}.tar.gz  -C /usr/local/bin
                                 tar -xvf ./openshift-tools/openshift-client-linux-${OPENSHIFT_INSTALL_RELEASE_VERSION}.tar.gz  -C /usr/bin
                                 rm -rf ./openshift-tools
@@ -172,10 +188,49 @@ pipeline {
 
             }
         }
+        stage('Setup and run ansible extra') {
+            steps {
+               script {
+                    ansiColor('xterm') {
+                        echo ""
+                    }
+                    try {
+                        sh '''
+                            echo 'Creating var.yaml'
+                            rm -rf ~/.ansible
+                            ansible all -m setup -a 'gather_subset=!all'
+                            cd ${WORKSPACE}/ocp4-playbooks-extras
+                            cp examples/e2e_vars.yaml e2e_vars.yaml
+                            sed -i "s|e2e_tests_enabled:.*$|e2e_tests_enabled: true|g" e2e_vars.yaml
+                            sed -i "s|e2e_tests_git:.*$|e2e_tests_git: ${E2E_GIT}|g" e2e_vars.yaml
+                            sed -i "s|e2e_tests_git_branch:.*$|e2e_tests_git_branch: ${E2E_BRANCH}|g" e2e_vars.yaml
+                            sed -i "s|e2e_tests_exclude_list_url:.*$|e2e_tests_exclude_list_url: ${E2E_EXCLUDE_LIST}|g" e2e_vars.yaml
+                            sed -i "s|golang_tarball:.*$|golang_tarball: ${GOLANG_TARBALL}|g" e2e_vars.yaml
+                            sed -i "s|github_token:.*$|github_token: ${GITHUB_TOKEN}|g" e2e_vars.yaml
+                            cat e2e_vars.yaml
+                            cp examples/inventory ./e2e_inventory
+                            cat e2e_inventory
+                            ansible-playbook  -i e2e_inventory -e @e2e_vars.yaml playbooks/ocp-e2e.yml
+                            cd ${WORKSPACE}/deploy
+                            cp /root/e2e_tests_results/summary.txt ./
+                            cp /root/e2e_tests_results/openshift-cmd-out-log* ./
+                            file=$(find /root/e2e_tests_results/conformance-parallel -name "junit_e2e_*.xml" -print | head -n 1)
+                            cp $file junit_e2e.xml
+                            tar -czf ./conformance-parallel-out.txt.tar.gz /root/e2e_tests_results > /dev/null 2>&1
+                        '''
+                    }
+                    catch (err) {
+                        echo 'Error ! ansible setup failed!'
+                        env.FAILED_STAGE=env.STAGE_NAME
+                        throw err
+                    }
+                }
+            }
+       }
     }
     post {
         always {
-            archiveAllArtifacts("deploy/metadata.json")
+            archiveAllArtifacts("deploy/metadata.json", "deploy/conformance-parallel-out.txt.tar.gz", "deploy/summary.txt", "deploy/openshift-cmd-out-log-*.txt")
             script {
                sh '''#!/bin/bash
                 echo "Cleanup IPI cluster"
@@ -207,6 +262,7 @@ pipeline {
                 ./powervs-hack/scripts/get-dhcp.sh $dhcp_id -d || ibmcloud pi ins delete $dhcp_id || true
                 '''
             }
+            processE2eResults()
             notifyBySlack(currentBuild.result, env.MESSAGE)
             cleanWs()
         }
