@@ -58,8 +58,8 @@ pipeline {
     parameters {
         string(defaultValue: '', description: 'Current Build(quay image or build number)', name: 'CurrentBuild')
         string(defaultValue: '', description: 'Upgrade Build(quay image or build number)', name: 'UpgradeBuild')
-        validatingString(defaultValue: "4.9", name: "Release", description: "Current Build Release, eg. 4.9", regex: /^[0-9]\.[0-9]+$/, failedValidationMessage: "Please enter OCP releases like 4.9")
-        validatingString(defaultValue: "4.10", name: "UpgradeRelease", description: "Upgrade Build Release, eg. 4.10", regex: /^[0-9]\.[0-9]+$/, failedValidationMessage: "Please enter OCP releases like 4.10")
+        validatingString(defaultValue: "4.17", name: "Release", description: "Current Build Release, eg. 4.17", regex: /^[0-9]\.[0-9]+$/, failedValidationMessage: "Please enter OCP releases like 4.17")
+        validatingString(defaultValue: "4.18", name: "UpgradeRelease", description: "Upgrade Build Release, eg. 4.18", regex: /^[0-9]\.[0-9]+$/, failedValidationMessage: "Please enter OCP releases like 4.18")
         string(defaultValue: '720', description: 'Enter time(in Minutes) to retain the cluster', name: 'KeepFor')
         booleanParam(defaultValue: false, name: 'Rune2e', description: 'Select if you want to run e2e tests. E2e runs after cluster upgrade')
     }
@@ -75,7 +75,6 @@ pipeline {
         REDHAT_USERNAME = credentials('REDHAT_USERNAME')
         REDHAT_PASSWORD = credentials('REDHAT_PASSWORD')
         PULL_SECRET = credentials('PULL_SECRET')
-        OS_AUTH_URL=credentials('URL_SCNLPOWERCLOUD')
 
         //Parameters
         OCP_RELEASE="${params.Release}"
@@ -88,19 +87,23 @@ pipeline {
 
         //Env constants
         AVAILABILITY_ZONE = "${params.HostGroup}"
+        //Env constants
+        HARDWARE_CHOSE = "P9"
         TARGET = "deploy-openshift4-powervc"
         TEMPLATE_FILE = ".${TARGET}.tfvars.template"
+        TERRAFORM_VER = "1.8.4"
         POWERVS = false
         SCRIPT_DEPLOYMENT = false
         WAIT_FOR_DEBUG = "0"
         ENABLE_SCALE_TEST="false"
-        GOLANG_TARBALL="https://dl.google.com/go/go1.17.6.linux-ppc64le.tar.gz"
+        // kdump Configuration
+        KDUMP_ENABLE="false" 
     }
     stages {
         stage('Clone ansible extra') {
             when { expression { return env.ENABLE_E2E_TEST == "true"; } }
             steps {
-                cloneRepo("git@github.ibm.com:redstack-power/ocp4_ansible_extras.git", "ansible_extra")
+                cloneRepo("https://github.com/ocp-power-automation/ocp4-playbooks-extras", "ocp4-playbooks-extras", "*/main")
             }
         }
         stage('Setup Common Environment Variables') {
@@ -129,10 +132,28 @@ pipeline {
                     else {
                         env.OPENSHIFT_POWERVC_GIT_TF_DEPLOY_BRANCH="main" //The download branch
                     }
-                    if (env.OCP_RELEASE == "4.10" || env.OCP_RELEASE == "4.11"){
-                        env.REDHAT_RELEASE = "8.6"
+                    if (env.OCP_RELEASE == "4.13"){
+                        env.REDHAT_RELEASE = "9.2"
+                        env.GOLANG_TARBALL = "https://golang.org/dl/go1.19.linux-ppc64le.tar.gz"
+                    }
+                    else if (env.OCP_RELEASE == "4.14") {
+                        env.REDHAT_RELEASE = "9.2"
+                        env.GOLANG_TARBALL = "https://golang.org/dl/go1.20.linux-ppc64le.tar.gz"
+                    }
+                    else if (env.OCP_RELEASE == "4.15") {
+                        env.REDHAT_RELEASE = "9.3"
+                        env.GOLANG_TARBALL = "https://golang.org/dl/go1.22.0.linux-ppc64le.tar.gz"
+                    }
+                    else if (env.OCP_RELEASE == "4.16"){
+                        env.REDHAT_RELEASE = "9.4"
+                        env.GOLANG_TARBALL = "https://golang.org/dl/go1.22.0.linux-ppc64le.tar.gz"
+                    }
+                    else if (env.OCP_RELEASE == "4.17") {
+                        env.REDHAT_RELEASE = "9.4"
+                        env.GOLANG_TARBALL = "https://golang.org/dl/go1.22.4.linux-ppc64le.tar.gz"
                     } else {
-                        env.REDHAT_RELEASE = "8.5"
+                        env.REDHAT_RELEASE = "9.5"
+                        env.GOLANG_TARBALL = "https://golang.org/dl/go1.22.4.linux-ppc64le.tar.gz"
                     }
                 }
             }
@@ -157,17 +178,17 @@ pipeline {
                         gbToMb()
                         pullSecret()
                         env.OPENSHIFT_IMAGE = ""
-                        sh(returnStdout: false, script: "apt update && apt install docker docker.io jq -y")
                         if (env.CURRENT_BUILD?.trim()) {
                             if (!env.CURRENT_BUILD.contains('quay')) {
-                                env.OPENSHIFT_IMAGE  = "sys-powercloud-docker-local.artifactory.swg-devops.com/ocp-ppc64le/release-ppc64le:${env.CURRENT_BUILD}"
+                                env.OPENSHIFT_IMAGE  = "docker-na.artifactory.swg-devops.com/sys-powercloud-docker-local/ocp-ppc64le/release-ppc64le:${env.CURRENT_BUILD}"
                                 sh '''
-                                    docker login sys-powercloud-docker-local.artifactory.swg-devops.com -u ${DOCKER_USER} -p ${DOCKER_PASSWORD}
-                                    docker pull ${OPENSHIFT_IMAGE}
+                                    nerdctl login -u ${ARTIFACTORY_USER} -p ${ARTIFACTORY_TOKEN} docker-na.artifactory.swg-devops.com/sys-powercloud-docker-local
+                                    nerdctl pull ${OPENSHIFT_IMAGE}
                                     if [ $? -ne 0 ]; then
                                         echo "${OPENSHIFT_IMAGE} not found"
                                         exit 1
                                     fi
+                                    nerdctl rmi ${OPENSHIFT_IMAGE}
                                 '''
                             }
                             else {
@@ -181,14 +202,15 @@ pipeline {
                         env.UPGRADE_IMAGE = ""
                         if (env.UPGRADE_BUILD?.trim()) {
                             if (!env.UPGRADE_BUILD.contains('quay')) {
-                                env.UPGRADE_IMAGE  = "sys-powercloud-docker-local.artifactory.swg-devops.com/ocp-ppc64le/release-ppc64le:${env.UPGRADE_BUILD}"
+                                env.UPGRADE_IMAGE  = "docker-na.artifactory.swg-devops.com/sys-powercloud-docker-local/ocp-ppc64le/release-ppc64le:${env.UPGRADE_BUILD}"
                                 sh '''
-                                    docker login sys-powercloud-docker-local.artifactory.swg-devops.com -u ${DOCKER_USER} -p ${DOCKER_PASSWORD}
-                                    docker pull ${UPGRADE_IMAGE}
+                                    nerdctl login -u ${ARTIFACTORY_USER} -p ${ARTIFACTORY_TOKEN} docker-na.artifactory.swg-devops.com/sys-powercloud-docker-local
+                                    nerdctl pull ${UPGRADE_IMAGE}
                                     if [ $? -ne 0 ]; then
                                         echo "${UPGRADE_IMAGE} not found"
                                         exit 1
                                     fi
+                                    nerdctl rmi ${UPGRADE_IMAGE}
                                 '''
                             }
                             else {
@@ -199,22 +221,25 @@ pipeline {
                             echo "Upgrade build is empty"
                             throw err
                         }
-                        if (fileExists("deploy/artifactory/rhcos-${OCP_RELEASE}-powercloud-latest.txt")) {
-                            env.RHCOS_IMAGE = readFile "deploy/artifactory/rhcos-${OCP_RELEASE}-powercloud-latest.txt"
+
+                        currentBuild.description = "Upgrade OCP: ${env.OPENSHIFT_IMAGE.split(':')[1].trim()} to ${env.UPGRADE_IMAGE.split(':')[1].trim()}"
+
+                        if (fileExists("deploy/artifactory/cicd-rhcos-${OCP_RELEASE}.latest.txt")) {
+                            env.RHCOS_IMAGE = readFile "deploy/artifactory/cicd-rhcos-${OCP_RELEASE}.latest.txt"
                             env.RHCOS_IMAGE_NAME = env.RHCOS_IMAGE.split()[0].trim()
                             env.RHCOS_IMAGE_ID = env.RHCOS_IMAGE.split()[1].trim()
                         }
                         else {
-                            echo "rhcos-${OCP_RELEASE}-powercloud-latest.txt file does not exist. Please check poll-powervc-images job"
+                            echo "cicd-rhcos-${OCP_RELEASE}.latest.txt file does not exist. Please check poll-powervc-images job"
                             throw err
                         }
-                        if (fileExists("deploy/artifactory/rhel-${REDHAT_RELEASE}-powercloud-latest.txt")) {
-                            env.BASTION_IMAGE = readFile "deploy/artifactory/rhel-${REDHAT_RELEASE}-powercloud-latest.txt"
+                        if (fileExists("deploy/artifactory/cicd-rhel-${REDHAT_RELEASE}.latest.txt")) {
+                            env.BASTION_IMAGE = readFile "deploy/artifactory/cicd-rhel-${REDHAT_RELEASE}.latest.txt"
                             env.BASTION_IMAGE_NAME = env.BASTION_IMAGE.split()[0].trim()
                             env.BASTION_IMAGE_ID = env.BASTION_IMAGE.split()[1].trim()
                         }
                         else {
-                            echo "rhel-${REDHAT_RELEASE}-powercloud-latest.txt file does not exist. Please check poll-powervc-images job"
+                            echo "cicd-rhel-${REDHAT_RELEASE}.latest.txt file does not exist. Please check poll-powervc-images job"
                             throw err
                         }
                         if (env.DEPLOY_MASTER == "false")
@@ -222,10 +247,6 @@ pipeline {
                             echo "Cluster cant deploy without master"
                             throw err
                         }
-                        env.OPENSHIFT_INSTALL_TARBALL="https://mirror.openshift.com/pub/openshift-v4/ppc64le/clients/ocp-dev-preview/latest-${OCP_RELEASE}/openshift-install-linux.tar.gz"
-                        env.OPENSHIFT_CLIENT_TARBALL="https://mirror.openshift.com/pub/openshift-v4/ppc64le/clients/ocp-dev-preview/latest-${OCP_RELEASE}/openshift-client-linux.tar.gz"
-                        env.OPENSHIFT_CLIENT_TARBALL_AMD64="https://mirror.openshift.com/pub/openshift-v4/clients/ocp-dev-preview/latest-${OCP_RELEASE}/openshift-client-linux.tar.gz"
-
                         createTemplate(env.OS_AUTH_URL, env.MASTER_VCPUS , "${MASTER_MEMORY_MB}", env.MASTER_PROCESSORS, env.MASTER_TEMPLATE)
                         createTemplate(env.OS_AUTH_URL, env.WORKER_VCPUS , "${WORKER_MEMORY_MB}", env.WORKER_PROCESSORS, env.WORKER_TEMPLATE)
                         createTemplate(env.OS_AUTH_URL, env.BASTION_VCPUS , "${BASTION_MEMORY_MB}", env.BASTION_PROCESSORS, env.BASTION_TEMPLATE)
@@ -274,6 +295,7 @@ pipeline {
             when { expression { return env.ENABLE_E2E_TEST == "true"; } }
             steps {
                setupAndRunE2e()
+               notifyBySlack(currentBuild.result, "OCP BUILD: `${OPENSHIFT_IMAGE} to ${UPGRADE_IMAGE}` E2E has completed !!")
             }
         }
         stage('Gather pprof and prometheus data') {
@@ -309,7 +331,8 @@ pipeline {
         always {
             script {
                 try{
-                    archiveAllArtifacts("deploy/vars.tfvars", "cpu-pre.pprof", "heap-pre.pprof", "prometheus.tar.gz", "deploy/cron.log", "must-gather.tar.gz")
+                    archiveAllArtifacts("deploy/conformance-parallel-out.txt.tar.gz", "deploy/summary.txt", "deploy/vars.tfvars",
+                        "cpu-pre.pprof", "heap-pre.pprof", "prometheus.tar.gz", "deploy/cron.log")
                     cleanupOcp4Cluster()
                     checkInfraError()
                     processE2eResults()
