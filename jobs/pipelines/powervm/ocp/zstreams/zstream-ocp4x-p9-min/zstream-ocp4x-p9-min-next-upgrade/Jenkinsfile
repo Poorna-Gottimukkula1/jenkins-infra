@@ -14,6 +14,7 @@ pipeline {
         string(defaultValue: '', description: 'Upgrade Build(quay image or build number)', name: 'UpgradeBuild')
         string(defaultValue: '', description: 'Current Build Release', name: 'Release')
         string(defaultValue: '', description: 'Upgrade Build Release', name: 'UpgradeRelease')
+        booleanParam(defaultValue: false, name: 'Rune2e', description: 'Select if you want to run e2e tests. E2e runs after cluster upgrade')
         string(defaultValue: '720', description: 'Enter time(in Minutes) to retain the cluster', name: 'KeepFor')
     }
     environment {
@@ -38,6 +39,7 @@ pipeline {
         CURRENT_BUILD="${params.CurrentBuild}"
         UPGRADE_BUILD="${params.UpgradeBuild}"
         TIMEOUT = "${params.KeepFor}"
+        ENABLE_E2E_TEST = "${params.Rune2e}"
 
         //Branch
         OPENSHIFT_POWERVC_GIT_TF_DEPLOY_BRANCH="main"//The download branch
@@ -56,6 +58,12 @@ pipeline {
     }
 
     stages {
+        stage('Clone ansible extra') {
+            when { expression { return env.ENABLE_E2E_TEST == "true"; } }
+            steps {
+                cloneRepo("https://github.com/ocp-power-automation/ocp4-playbooks-extras", "ocp4-playbooks-extras", "*/main")
+            }
+        }
         stage('Setup Common Environment Variables') {
             steps {
                 setupCommonEnvironmentVariables()
@@ -69,6 +77,7 @@ pipeline {
                     env.UPGRADE_DELAY_TIME = "600"
                     env.UPGRADE_PAUSE_TIME = "90"
                     env.SETUP_SQUID_PROXY = "true"
+                    env.E2E_BRANCH = "release-${env.UPGRADE_RELEASE}"
 
                     if (env.OCP_RELEASE == "4.12") {
                         env.REDHAT_RELEASE = "9.2"
@@ -234,6 +243,13 @@ pipeline {
                 validateCoStatus()
             }
         }
+        stage('Setup and run ansible extra') {
+            when { expression { return env.ENABLE_E2E_TEST == "true"; } }
+            steps {
+               setupAndRunE2e()
+               notifyBySlack(currentBuild.result, "OCP BUILD: `${OPENSHIFT_IMAGE} to ${UPGRADE_IMAGE}` E2E has completed !!")
+            }
+        }
         stage('Gather pprof and prometheus data') {
             steps {
                 gatherPrometheusData()
@@ -267,7 +283,8 @@ pipeline {
         always {
             script {
                 try{
-                    archiveAllArtifacts("deploy/vars.tfvars", "cpu-pre.pprof", "heap-pre.pprof", "prometheus.tar.gz", "deploy/cron.log")
+                    archiveAllArtifacts("deploy/conformance-parallel-out.txt.tar.gz", "deploy/summary.txt", "deploy/vars.tfvars",
+                        "cpu-pre.pprof", "heap-pre.pprof", "prometheus.tar.gz", "deploy/cron.log")
                     storeMustGatherLogs()
                     checkInfraError()
                 }
