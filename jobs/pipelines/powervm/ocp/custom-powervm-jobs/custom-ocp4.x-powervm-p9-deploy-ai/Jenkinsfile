@@ -11,9 +11,9 @@ pipeline {
         string(defaultValue: 'quay.io/openshift-release-dev/ocp-release:4.17.0-ec.3-multi', description: 'Build(quay image or build number)(Optional: this is for `release_image_override`)', name: 'Build')
         string(defaultValue: '10', description: 'Enter time(in Minutes) to retain the cluster', name: 'KeepFor')
         string(defaultValue: '1.22.4', description: 'Enter the Go Language Version', name: 'GoLangVersion')
-        choice(description: 'Select the assisted RHCOS version', choices: ['4.17', '4.16','4.15','4.14','4.13','4.12'], name: 'Release')
-        string(defaultValue: '4.17', description: 'Enter assisted OCP version', name: 'OcpRelease')
-        choice(description: 'Select the RedHat Release Version', choices: ['9.4','9.3','9.2','9.1','9.0', '8.8','8.7'], name: 'RedHatRelease')
+        choice(description: 'Select the assisted RHCOS version', choices: ['4.19', '4.18', '4.17', '4.16','4.15','4.14','4.13','4.12'], name: 'Release')
+        string(defaultValue: '4.19', description: 'Enter assisted OCP version', name: 'OcpRelease')
+        choice(description: 'Select the RedHat Release Version', choices: ['9.5','9.4','9.3','9.2','9.1','9.0', '8.8','8.7'], name: 'RedHatRelease')
         choice(description: 'Select the AI(Assisted Installer) Install Type', choices: ['assisted', 'agent', 'sno'], name: 'InstallType')
         choice(description: 'Select the Cluster Type (compact, sno) default type is HA', choices: ['', 'compact', 'sno'], name: 'clusterType')
         booleanParam(defaultValue: false, name: 'RunE2e', description: 'Select if you want to run e2e tests. E2e runs after cluster Deployed')
@@ -105,8 +105,14 @@ pipeline {
                     env.CLUSTER_DOMAIN = "redhat.com"
                     //env.SCG_ID = "ba9df88e-d1ba-41ec-a8d9-ec0fd7af7594"
                     if ( ENABLE_MULTI == "true") {
-                        env.OPENSHIFT_INSTALL_TARBALL="https://mirror.openshift.com/pub/openshift-v4/multi/clients/ocp-dev-preview/candidate-${OCP_RELEASE}/ppc64le/openshift-install-linux.tar.gz"
-                        env.OPENSHIFT_CLIENT_TARBALL="https://mirror.openshift.com/pub/openshift-v4/multi/clients/ocp-dev-preview/candidate-${OCP_RELEASE}/ppc64le/openshift-client-linux.tar.gz"
+                        if (env.OCP_RELEASE == "4.19") {
+                            env.OPENSHIFT_INSTALL_TARBALL="https://mirror.openshift.com/pub/openshift-v4/multi/clients/ocp-dev-preview/candidate-${OCP_RELEASE}/ppc64le/openshift-install-linux.tar.gz"
+                            env.OPENSHIFT_CLIENT_TARBALL="https://mirror.openshift.com/pub/openshift-v4/multi/clients/ocp-dev-preview/candidate-${OCP_RELEASE}/ppc64le/openshift-client-linux.tar.gz"
+                        }
+                        else {
+                            env.OPENSHIFT_INSTALL_TARBALL="https://mirror.openshift.com/pub/openshift-v4/multi/clients/ocp/latest-${OCP_RELEASE}/ppc64le/openshift-install-linux.tar.gz"
+                            env.OPENSHIFT_CLIENT_TARBALL="https://mirror.openshift.com/pub/openshift-v4/multi/clients/ocp/latest-${OCP_RELEASE}/ppc64le/openshift-client-linux.tar.gz"
+                        }
                     }
                 }
 
