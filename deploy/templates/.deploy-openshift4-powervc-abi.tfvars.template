@@ -45,15 +45,15 @@ install_type = "__AI_INSTALL_TYPE__"
 #################################
 # variables for assisted install
 #################################
-assisted_ocp_version   = "__OCP_VERSION__"
-assisted_rhcos_version = "__OCP_RELEASE__"
-assisted_url = "https://api.openshift.com/api/assisted-install/v2"
-assisted_token = "__AI_TOKEN__"
+#assisted_ocp_version   = "__OCP_VERSION__"
+#assisted_rhcos_version = "__OCP_RELEASE__"
+#assisted_url = "https://api.openshift.com/api/assisted-install/v2"
+#assisted_token = "__AI_TOKEN__"
 
 
 ### OpenShift Installation Details
 
-
+ansible_extra_options      = "-vvvv"
 
 ### OpenShift RHCOS image files
 #openshift_rhcos_iso       = "https://mirror.openshift.com/pub/openshift-v4/ppc64le/dependencies/rhcos/pre-release/4.15.0-rc.0/rhcos-live.ppc64le.iso"

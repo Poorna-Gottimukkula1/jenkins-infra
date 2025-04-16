@@ -45,7 +45,7 @@ pipeline {
         WAIT_FOR_DEBUG = "1"
 
         //Branch
-        OPENSHIFT_POWERVC_GIT_TF_DEPLOY_PROJECT="https://github.com/ocp-power-automation/ocp4-ai-power.git"
+        OPENSHIFT_POWERVC_GIT_TF_DEPLOY_PROJECT="https://github.com/Poorna-Gottimukkula1/ocp4-ai-power.git"
         OPENSHIFT_POWERVC_GIT_TF_DEPLOY_BRANCH="main"//The download branch
 
         //E2e and Scale specific variables
