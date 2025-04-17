@@ -15,7 +15,7 @@ pipeline {
         string(defaultValue: '4.19', description: 'Enter assisted OCP version', name: 'OcpRelease')
         choice(description: 'Select the RedHat Release Version', choices: ['9.5','9.4','9.3','9.2','9.1','9.0', '8.8','8.7'], name: 'RedHatRelease')
         choice(description: 'Select the AI(Assisted Installer) Install Type', choices: ['assisted', 'agent', 'sno'], name: 'InstallType')
-        choice(description: 'Select the Cluster Type (compact, sno) default type is HA', choices: ['', 'compact', 'sno'], name: 'clusterType')
+        choice(description: 'Select the Cluster Type (compact, sno) default type is HA', choices: ['ha', 'compact', 'sno'], name: 'clusterType')
         booleanParam(defaultValue: false, name: 'RunE2e', description: 'Select if you want to run e2e tests. E2e runs after cluster Deployed')
         booleanParam(defaultValue: false, name: 'multiArch', description: 'Select if you want to deploy with multi arch')
     }
@@ -87,7 +87,7 @@ pipeline {
                             env.NUM_OF_MASTERS = "3"
                             env.NUM_OF_WORKERS = "0"
                             echo 'Deploying compact Cluster !!!'
-                        } else {
+                        } else if ( AI_CLUSTER_TYPE == "ha") {
                             env.NUM_OF_MASTERS = "3"
                             env.NUM_OF_WORKERS = "2"
                             echo 'Deploying HA Cluster !!!'
