@@ -62,3 +62,4 @@ ansible_extra_options      = "-vvvv"
 #openshift_rhcos_rootfs    = "https://mirror.openshift.com/pub/openshift-v4/ppc64le/dependencies/rhcos/pre-release/4.15.0-rc.0/rhcos-installer-rootfs.ppc64le.img"
 dns_forwarders = "__DNS_FORWARDERS__"
 
+
