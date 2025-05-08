@@ -93,22 +93,16 @@ pipeline {
                             env.NUM_OF_WORKERS = "2"
                             echo 'Deploying HA Cluster !!!'
                         }
-                    }
-                    if ( AI_INSTALL_TYPE == "assisted" || AI_INSTALL_TYPE == "sno" ){
-                        env.TERRAFORM_VARS_FILE = ".deploy-openshift4-powervc-ai.tfvars"
-                        env.KUBECONFIG_PATH="/root/ocp4-workdir-assisted/auth/kubeconfig"
                     } else {
-                        env.TERRAFORM_VARS_FILE = ".deploy-openshift4-powervc-abi.tfvars"
-                        env.KUBECONFIG_PATH="/root/ocp4-workdir-agent/auth/kubeconfig"
-                    }
-                    // if ( AI_INSTALL_TYPE == "agent" ){
-                    //     env.NUM_OF_MASTERS = "3"
-                    //     env.NUM_OF_WORKERS = "2"
-                    // }
-                    if ( AI_INSTALL_TYPE == "sno" ){
                         env.NUM_OF_MASTERS = "1"
                         env.NUM_OF_WORKERS = "0"
                     }
+                    if ( AI_INSTALL_TYPE == "assisted" ){
+                        env.TERRAFORM_VARS_FILE = ".deploy-openshift4-powervc-ai.tfvars"
+                    } else {
+                        env.TERRAFORM_VARS_FILE = ".deploy-openshift4-powervc-abi.tfvars"
+                    }
+                    env.KUBECONFIG_PATH="/root/ocp4-workdir-${AI_INSTALL_TYPE}/auth/kubeconfig"
                     env.INSTANCE_NAME = "${AI_INSTALL_TYPE}"
                     env.CLUSTER_DOMAIN = "redhat.com"
                     def storageMap = [
@@ -118,8 +112,6 @@ pipeline {
                     ]
                     def selectedValue = storageMap[params.ScgType]
                     echo "Selected SCG: ${params.ScgType}, ID: ${selectedValue}"
-                    //env.SCG_ID = "993a1363-d689-4796-82fb-77ee34e9fa10"
-                    //env.SCG_ID = "ba9df88e-d1ba-41ec-a8d9-ec0fd7af7594"
                     env.SCG_ID = "${selectedValue}"
                     env.MASTER_VCPUS = "2"
                     env.WORKER_VCPUS = "2"
