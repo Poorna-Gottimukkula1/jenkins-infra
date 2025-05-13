@@ -54,7 +54,7 @@ def call() {
                 env.PRE_KERNEL_OPTIONS='\\"rd.multipath=0\\", \\"loglevel=7\\"'
             }
             else {
-                env.INSTANCE_NAME = "rdr-cicd"
+                env.INSTANCE_NAME = "rdr-cicd-${env.OCP_RELEASE.replaceAll('\\.', '')}"
                 env.SETUP_SQUID_PROXY = "true"
                 env.STORAGE_TYPE = "nfs"
                 env.SYSTEM_TYPE = "s922"
@@ -81,7 +81,7 @@ def call() {
             //Pull Secret
             env.PULL_SECRET_FILE = "${WORKSPACE}/deploy/data/pull-secret.txt"
             //Need to use latest version for the stable release.
-            if (env.OCP_RELEASE == "4.19") {
+            if (env.OCP_RELEASE == "4.19" || env.OCP_RELEASE == "4.20" ) {
                 env.OPENSHIFT_INSTALL_TARBALL="https://mirror.openshift.com/pub/openshift-v4/multi/clients/ocp-dev-preview/candidate-${OCP_RELEASE}/ppc64le/openshift-install-linux.tar.gz"
                 env.OPENSHIFT_CLIENT_TARBALL="https://mirror.openshift.com/pub/openshift-v4/multi/clients/ocp-dev-preview/candidate-${OCP_RELEASE}/ppc64le/openshift-client-linux.tar.gz"
                 env.OPENSHIFT_CLIENT_TARBALL_AMD64="https://mirror.openshift.com/pub/openshift-v4/multi/clients/ocp-dev-preview/candidate-${OCP_RELEASE}/amd64/openshift-client-linux.tar.gz"
@@ -164,7 +164,7 @@ def call() {
             env.OPENSHIFT_POWERVC_GIT_TF_DEPLOY_PROJECT="https://github.com/sudeeshjohn/ocp4-upi-powervm.git"
             //Cluster and vm details
             env.CLUSTER_DOMAIN="redhat.com"
-            env.INSTANCE_NAME = "rdr-cicd"
+            env.INSTANCE_NAME = "rdr-cicd-${env.OCP_RELEASE.replaceAll('\\.', '')}"
             env.MOUNT_ETCD_RAMDISK="true"
             env.CHRONY_CONFIG="true"
 
@@ -220,7 +220,7 @@ def call() {
             env.BASTION_MEMORY_MB=""
             env.BOOTSTRAP_MEMORY_MB=''
             //Need to use latest version for the stable release.
-            if (env.OCP_RELEASE == "4.19") {
+            if (env.OCP_RELEASE == "4.19" || env.OCP_RELEASE == "4.20" ) {
                 env.OPENSHIFT_INSTALL_TARBALL="https://mirror.openshift.com/pub/openshift-v4/multi/clients/ocp-dev-preview/candidate-${OCP_RELEASE}/ppc64le/openshift-install-linux.tar.gz"
                 env.OPENSHIFT_CLIENT_TARBALL="https://mirror.openshift.com/pub/openshift-v4/multi/clients/ocp-dev-preview/candidate-${OCP_RELEASE}/ppc64le/openshift-client-linux.tar.gz"
                 env.OPENSHIFT_CLIENT_TARBALL_AMD64="https://mirror.openshift.com/pub/openshift-v4/multi/clients/ocp-dev-preview/candidate-${OCP_RELEASE}/amd64/openshift-client-linux.tar.gz"

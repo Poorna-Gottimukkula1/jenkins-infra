@@ -53,6 +53,7 @@ pipeline {
                             cat images.scnlcicdcloud.all.date.sorted.txt | grep -v ssp | grep 'cicd-rhel9\\.3'  | awk '{print $2" "$1}'|head -n 1 > cicd-rhel-9.3.latest.txt || true
                             cat images.scnlcicdcloud.all.date.sorted.txt | grep -v ssp | grep 'cicd-rhel9\\.4'  | awk '{print $2" "$1}'|head -n 1 > cicd-rhel-9.4.latest.txt || true
                             cat images.scnlcicdcloud.all.date.sorted.txt | grep -v ssp | grep 'cicd-rhel9\\.5'  | awk '{print $2" "$1}'|head -n 1 > cicd-rhel-9.5.latest.txt || true
+                            cat images.scnlcicdcloud.all.date.sorted.txt | grep -v ssp | grep 'cicd-rhel10\\.0'  | awk '{print $2" "$1}'|head -n 1 > cicd-rhel-10.0.latest.txt || true
                         '''
 
                     }
@@ -73,7 +74,7 @@ pipeline {
                                 "cicd-rhcos-4.17.latest.txt", "cicd-rhcos-4.18.latest.txt",  "cicd-rhcos-4.19.latest.txt", 
                                 "cicd-rhel-8.3.latest.txt", "cicd-rhel-8.4.latest.txt", "cicd-rhel-8.5.latest.txt" , 
                                 "cicd-rhel-8.6.latest.txt", "cicd-rhel-9.0.latest.txt", "cicd-rhel-9.2.latest.txt", 
-                                "cicd-rhel-9.3.latest.txt", "cicd-rhel-9.4.latest.txt",  "cicd-rhel-9.5.latest.txt")
+                                "cicd-rhel-9.3.latest.txt", "cicd-rhel-9.4.latest.txt",  "cicd-rhel-9.5.latest.txt", "cicd-rhel-10.0.latest.txt")
             cleanWs()
         }
     }
