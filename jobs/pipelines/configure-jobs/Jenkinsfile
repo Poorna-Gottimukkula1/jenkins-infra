@@ -1,0 +1,56 @@
+@Library('jenkins-upstream-library') _
+pipeline {
+    agent {
+        docker {
+            image 'quay.io/pgottimu/jenkins-infra:1.0'
+            args '-v /etc/resolv.conf:/etc/resolv.conf'
+            label 'jump-vpc-x86_64'
+        }
+    }
+
+    parameters {
+        string(name: 'JENKINS_URI', defaultValue: '', description: 'Jenkins base URL')
+        string(name: 'JENKINS_USER', defaultValue: '', description: 'Jenkins username')
+        password(name: 'JENKINS_PASSWORD', defaultValue: '', description: 'Jenkins password or token')
+        string(name: 'REPO', defaultValue: 'https://github.com/ppc64le-cloud/jenkins-infra.git', description: 'Git repo to use')
+        string(name: 'REPO_BRANCH', defaultValue: 'master', description: 'Git branch to use')
+    }
+
+    stages {
+        stage('Reconfigure Jenkins Jobs') {
+            steps {
+                script {
+                    ansiColor('xterm') {
+                        echo "Branch selected: ${params.REPO_BRANCH}"
+                    }
+                    // Mask the password using injected environment
+                    withEnv([
+                        "JENKINS_URI=${params.JENKINS_URI}",
+                        "JENKINS_USER=${params.JENKINS_USER}",
+                        "JENKINS_PASSWORD=${params.JENKINS_PASSWORD}"
+                    ]) {
+                        sh """#!/bin/bash
+                        set -o errexit
+                        echo "Using Jenkins URI: ${JENKINS_URI}"
+                        git clone ${params.REPO} -b ${params.REPO_BRANCH}
+                        if [[ "${JENKINS_URI}" == *.cis.ibm.net ]]; then
+                          unset REQUESTS_CA_BUNDLE
+                          unset CURL_CA_BUNDLE
+                          echo "unsetting CURL_CA_BUNDLE and CURL_CA_BUNDLE variables"
+                        fi
+                        cd jenkins-infra
+                        crudini --set /etc/jenkins_jobs/jenkins_jobs.ini jenkins url ${JENKINS_URI}
+                        ./hack/load-jenkins-pipelines.sh
+                        """
+                    }
+                }
+            }
+        }
+    }
+
+    post {
+        always {
+            cleanWs()
+        }
+    }
+}
