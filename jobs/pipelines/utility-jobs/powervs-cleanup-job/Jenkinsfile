@@ -2,45 +2,38 @@
 
 def INSTANCE_NAME_LIST = [
                     "rdr-ocp-cicd-montreal01",
-                    "rdr-ocp-cicd-osaka21",
-                    "rdr-ocp-cicd-sydney04",
-                    "rdr-ocp-cicd-tokyo04",
                     "rdr-ocp-cicd-toronto01"
                     ]
 
 pipeline {
     agent {
-	    kubernetes {
-        	inheritFrom 'jenkins-agent'
-      	    	label 'jenkins-cleanup-job'
-      		defaultContainer 'jnlp'
-      		yamlFile 'hack/ibmcloud-build-pod.yaml'
-    	   }
+        kubernetes {
+            inheritFrom 'jenkins-agent'
+        }
     }
     environment {
         //users and credentials. All must be defined in Jenkins Credentials
-        IBMCLOUD_API_KEY = credentials('IBMCLOUD_API_KEY')
-        CRN = "crn:v1:bluemix:public:power-iaas:tor01:a/7cfbd5381a434af7a09289e795840d4e:007e0e92-91d5-4f30-bc63-ca515660a4c2::"
-        PVSADM_VERSION = "v0.1.15"
+        IBMCLOUD_APIKEY = credentials('IBMCLOUD_UPSTREAM_CI_API_KEY')
+        CRN = "crn:v1:bluemix:public:power-iaas:mon01:a/7cfbd5381a434af7a09289e795840d4e:7545067f-dc8c-40d3-be18-13f433d19b62::"
+        PVSADM_VERSION = "v0.1.20"
 	}
 
 	stages {
         stage('Cleanup PowerVS Resources') {
             steps {
-                 container('ibmcloud'){
-		  	script {
-				sh(returnStatus: false, returnStdout: false, script: "curl -sL https://raw.githubusercontent.com/ppc64le-cloud/pvsadm/${PVSADM_VERSION}/get.sh | VERSION=${PVSADM_VERSION} FORCE=1 bash; pvsadm version")
-				sh '''
-				    echo "IBM cloud login"
-				    ibmcloud login -a cloud.ibm.com -r us-south -g ocp-cicd-resource-group -q --apikey=${IBMCLOUD_API_KEY}
-				    ibmcloud pi workspace target ${CRN}
-				    chmod +x ./scripts/cleanup-powervs-resources.sh
-				'''
-	             INSTANCE_NAME_LIST.each { item ->
-	             sh(returnStatus: false, returnStdout: false, script: "./scripts/cleanup-powervs-resources.sh -s '${item}' -u 'rdr-cicd' 2>&1 | tee -a cleanup.log")
-	             }
-		        }
-                 }
+
+                script {
+                    sh(returnStatus: false, returnStdout: false, script: "curl -sL https://raw.githubusercontent.com/ppc64le-cloud/pvsadm/${PVSADM_VERSION}/get.sh | VERSION=${PVSADM_VERSION} FORCE=1 bash; pvsadm version")
+                    sh '''
+                        echo "IBM cloud login"
+                        ibmcloud login -a cloud.ibm.com -r us-south -g ocp-cicd-resource-group -q --apikey=${IBMCLOUD_APIKEY}
+                        ibmcloud pi workspace target ${CRN}
+                        chmod +x ./scripts/cleanup-powervs-resources.sh
+                    '''
+                    INSTANCE_NAME_LIST.each { item ->
+                    sh(returnStatus: false, returnStdout: false, script: "./scripts/cleanup-powervs-resources.sh -s '${item}' -u 'rdr-cicd' 2>&1 | tee -a cleanup.log")
+                    }
+                }
             }
         }
     }
