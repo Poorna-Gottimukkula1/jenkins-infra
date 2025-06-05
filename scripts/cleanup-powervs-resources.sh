@@ -19,9 +19,9 @@ if [ $? -ne 0 ]; then
    curl -sL https://raw.githubusercontent.com/ppc64le-cloud/pvsadm/master/get.sh | VERSION="v0.1.20" FORCE=1 bash
    
    if [ "rdr-qe-ocp-upi" = "$INSTANCE_NAME" ]; then 
-      ibmcloud login -a cloud.ibm.com -r ${VPCREGION} -g ${RESOURCE_GROUP} -q --apikey=${IBMCLOUD_API_KEY}
+      ibmcloud login -a cloud.ibm.com -r ${VPCREGION} -g ${RESOURCE_GROUP} -q --apikey=${IBMCLOUD_APIKEY}
    else
-      ibmcloud login -a cloud.ibm.com -r us-south -g ibm-internal-cicd-resource-group -q --apikey=${IBMCLOUD_API_KEY}
+      ibmcloud login -a cloud.ibm.com -r us-south -g ibm-internal-cicd-resource-group -q --apikey=${IBMCLOUD_APIKEY}
    fi
    ibmcloud pi workspace target "${CRN}"
 fi
@@ -29,18 +29,18 @@ fi
 if [ -n "$service_name" ]; then
   #Cleaning from clean job
   #Purge ssh keys
-  pvsadm purge keys --workspace-id $service_name  --regexp "$cluster_id*" --no-prompt --ignore-errors
+  pvsadm purge keys --workspace-name $service_name  --regexp "$cluster_id*" --no-prompt --ignore-errors
 
   #Purge vms
-  pvsadm purge vms --workspace-id $service_name  --regexp "$cluster_id*" --no-prompt --ignore-errors
+  pvsadm purge vms --workspace-name $service_name  --regexp "$cluster_id*" --no-prompt --ignore-errors
 
   #Purge volumes
-  pvsadm purge volumes --workspace-id $service_name  --regexp "$cluster_id*" --no-prompt --ignore-errors
+  pvsadm purge volumes --workspace-name $service_name  --regexp "$cluster_id*" --no-prompt --ignore-errors
 
   #Added sleep to give time to delete vms
   sleep 300
   #Purge networks
-  pvsadm purge networks --workspace-id $service_name  --regexp "$cluster_id*" --no-prompt --ignore-errors
+  pvsadm purge networks --workspace-name $service_name  --regexp "$cluster_id*" --no-prompt --ignore-errors
 else
   #Cleaning as a part of script
   #Purge vms
