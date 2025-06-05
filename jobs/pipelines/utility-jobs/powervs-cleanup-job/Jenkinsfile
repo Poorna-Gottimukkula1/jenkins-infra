@@ -26,7 +26,7 @@ pipeline {
                     sh(returnStatus: false, returnStdout: false, script: "curl -sL https://raw.githubusercontent.com/ppc64le-cloud/pvsadm/${PVSADM_VERSION}/get.sh | VERSION=${PVSADM_VERSION} FORCE=1 bash; pvsadm version")
                     sh '''
                         echo "IBM cloud login"
-                        ibmcloud login -a cloud.ibm.com -r us-south -g ocp-cicd-resource-group -q --apikey=${IBMCLOUD_APIKEY}
+                        ibmcloud login -a cloud.ibm.com -r us-south -g ibm-internal-cicd-resource-group -q --apikey=${IBMCLOUD_APIKEY}
                         ibmcloud pi workspace target ${CRN}
                         chmod +x ./scripts/cleanup-powervs-resources.sh
                     '''
