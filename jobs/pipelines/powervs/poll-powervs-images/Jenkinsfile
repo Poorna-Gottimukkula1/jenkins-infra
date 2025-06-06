@@ -23,7 +23,7 @@ pipeline {
         IBM_CLOUD_API_KEY = credentials('IBMCLOUD_UPSTREAM_CI_API_KEY')
         PCLOUD_IBM_API_KEY = credentials('IBM_PCLOUD_QE_API_KEY')
         ODF_IBMCLOUD_API_KEY = credentials('ODF_IBMCLOUD_API_KEY')
-        PVSADM_VERSION = "v0.1.15"
+        PVSADM_VERSION = "v0.1.20"
     }
     stages {
         stage('Pull PowerVS Images') {
