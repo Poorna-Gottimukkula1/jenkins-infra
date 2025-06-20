@@ -235,7 +235,7 @@ pipeline {
                 setupAndRunE2e()
             }
         }
-        stage('Validate CO status') {
+        stage('Validate CO status post e2e') {
             steps {
                 validateCoStatus()
             }
@@ -263,7 +263,7 @@ pipeline {
                 }
             }
         }
-        stage('Validate CO status') {
+        stage('Validate CO status post e2e and timeout') {
             steps {
                 validateCoStatus()
             }
