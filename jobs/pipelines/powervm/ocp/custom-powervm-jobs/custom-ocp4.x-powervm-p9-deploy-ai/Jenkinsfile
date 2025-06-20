@@ -235,6 +235,11 @@ pipeline {
                 setupAndRunE2e()
             }
         }
+        stage('Validate CO status') {
+            steps {
+                validateCoStatus()
+            }
+        }
         stage('Waiting to timeout') {
             steps {
                 script {
@@ -256,6 +261,11 @@ pipeline {
                         throw err
                     }
                 }
+            }
+        }
+        stage('Validate CO status') {
+            steps {
+                validateCoStatus()
             }
         }
     }
