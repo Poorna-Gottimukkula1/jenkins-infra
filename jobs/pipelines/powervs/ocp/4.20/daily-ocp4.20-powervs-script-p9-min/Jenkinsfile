@@ -42,6 +42,8 @@ pipeline {
         SCRIPT_DEPLOYMENT = true
         WAIT_FOR_DEBUG = "1"
 
+        OPENSHIFT_POWERVS_SCRIPT_GIT_TF_DEPLOY_PROJECT = "https://github.com/Poorna-Gottimukkula1/openshift-install-power.git"
+
         // Type of configuration
         CONFIG_TYPE="min"
         
