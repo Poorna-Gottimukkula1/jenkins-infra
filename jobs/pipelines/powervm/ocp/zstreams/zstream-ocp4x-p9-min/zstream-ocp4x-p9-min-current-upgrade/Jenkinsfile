@@ -84,11 +84,11 @@ pipeline {
                         env.GOLANG_TARBALL = "https://golang.org/dl/go1.19.linux-ppc64le.tar.gz"
                     }
                     else if (env.OCP_RELEASE == "4.14") {
-                        env.REDHAT_RELEASE = "9.2"
+                        env.REDHAT_RELEASE = "9.4"
                         env.GOLANG_TARBALL = "https://golang.org/dl/go1.20.linux-ppc64le.tar.gz"
                     }
                     else if (env.OCP_RELEASE == "4.15") {
-                        env.REDHAT_RELEASE = "9.3"
+                        env.REDHAT_RELEASE = "9.4"
                         env.GOLANG_TARBALL = "https://golang.org/dl/go1.22.0.linux-ppc64le.tar.gz"
                     }
                     else if (env.OCP_RELEASE == "4.16"){
@@ -96,7 +96,7 @@ pipeline {
                         env.GOLANG_TARBALL = "https://golang.org/dl/go1.22.0.linux-ppc64le.tar.gz"
                     }
                     else if (env.OCP_RELEASE == "4.17") {
-                        env.REDHAT_RELEASE = "9.4"
+                        env.REDHAT_RELEASE = "9.5"
                         env.GOLANG_TARBALL = "https://golang.org/dl/go1.22.4.linux-ppc64le.tar.gz"
                     } 
                     else if (env.OCP_RELEASE == "4.18"){
