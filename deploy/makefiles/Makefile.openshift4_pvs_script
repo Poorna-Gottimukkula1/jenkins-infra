@@ -12,17 +12,17 @@ deploy\:openshift4\:powervs\:script:
 .PHONY: deploy\:openshift4\:powervs\:script\:redeploy
 ## RedoDeploy openshift4 on powervs
 deploy\:openshift4\:powervs\:script\:redeploy: %redeploy:
-	@$(shell) cd $(OPENSHIFT_POWERVS_SCRIPT_DEPLOY_DIR) && ./openshift-install-powervs create -ignore-os-checks -ignore-warnings
+	@$(shell) cd $(OPENSHIFT_POWERVS_SCRIPT_DEPLOY_DIR) && ./openshift-install-powervs create -ignore-os-checks
 
 .PHONY: deploy\:openshift4\:powervs\:script\:destroy
 ## Destroy openshift4 on powervs deployment resources
 deploy\:openshift4\:powervs\:script\:destroy: %destroy:
-	@$(shell) cd $(OPENSHIFT_POWERVS_SCRIPT_DEPLOY_DIR) && ./openshift-install-powervs destroy -force-destroy -ignore-os-checks -ignore-warnings
+	@$(shell) cd $(OPENSHIFT_POWERVS_SCRIPT_DEPLOY_DIR) && ./openshift-install-powervs destroy -force-destroy -ignore-os-checks
 
 .PHONY: deploy\:openshift4\:powervs\:script\:output
 ## Get output openshift4 on powervs deployment resources
 deploy\:openshift4\:powervs\:script\:output: %output:
-	@$(shell) cd $(OPENSHIFT_POWERVS_SCRIPT_DEPLOY_DIR) && ./openshift-install-powervs -ignore-os-checks -ignore-warnings output $(TERRAFORM_OUTPUT_VAR)
+	@$(shell) cd $(OPENSHIFT_POWERVS_SCRIPT_DEPLOY_DIR) && ./openshift-install-powervs -ignore-os-checks output $(TERRAFORM_OUTPUT_VAR)
 
 .PHONY: deploy\:openshift4\:powervs\:script\:clean
 ## Clean up all openshift4 on powervs deployment resources
