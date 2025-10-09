@@ -7,7 +7,7 @@ OPENSHIFT_POWERVS_SCRIPT_TERRAFORM_VARS_FILE ?= .deploy-openshift4-powervs-scrip
 ## Deploy openshift4 on powervs
 deploy\:openshift4\:powervs\:script:
 	@$(GIT) clone -b $(OPENSHIFT_POWERVS_SCRIPT_GIT_TF_DEPLOY_BRANCH) $(OPENSHIFT_POWERVS_SCRIPT_GIT_TF_DEPLOY_PROJECT) $(OPENSHIFT_POWERVS_SCRIPT_DEPLOY_DIR)
-	@$(shell) cp data/pull-secret.txt $(OPENSHIFT_POWERVS_SCRIPT_DEPLOY_DIR)/ && cp id_rsa* $(OPENSHIFT_POWERVS_SCRIPT_DEPLOY_DIR)/ && cp -R ./kubectl ./oc ${OPENSHIFT_POWERVS_SCRIPT_DEPLOY_DIR}/ &&  cp $(OPENSHIFT_POWERVS_SCRIPT_TERRAFORM_VARS_FILE) $(OPENSHIFT_POWERVS_SCRIPT_DEPLOY_DIR)/var.tfvars && cd $(OPENSHIFT_POWERVS_SCRIPT_DEPLOY_DIR) && ./openshift-install-powervs create -ignore-os-checks -verbose -skip-bootstrap-delete
+	@$(shell) cp data/pull-secret.txt $(OPENSHIFT_POWERVS_SCRIPT_DEPLOY_DIR)/ && cp id_rsa* $(OPENSHIFT_POWERVS_SCRIPT_DEPLOY_DIR)/ && cp -R ./kubectl ./oc ${OPENSHIFT_POWERVS_SCRIPT_DEPLOY_DIR}/ &&  cp $(OPENSHIFT_POWERVS_SCRIPT_TERRAFORM_VARS_FILE) $(OPENSHIFT_POWERVS_SCRIPT_DEPLOY_DIR)/var.tfvars && cd $(OPENSHIFT_POWERVS_SCRIPT_DEPLOY_DIR) && ./openshift-install-powervs create -skip-bootstrap-delete -ignore-os-checks -verbose
 
 .PHONY: deploy\:openshift4\:powervs\:script\:redeploy
 ## RedoDeploy openshift4 on powervs
