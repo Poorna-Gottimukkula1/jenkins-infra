@@ -12,7 +12,7 @@ deploy\:openshift4\:powervs\:script:
 .PHONY: deploy\:openshift4\:powervs\:script\:redeploy
 ## RedoDeploy openshift4 on powervs
 deploy\:openshift4\:powervs\:script\:redeploy: %redeploy:
-	@$(shell) cd $(OPENSHIFT_POWERVS_SCRIPT_DEPLOY_DIR) && ./openshift-install-powervs create -ignore-os-checks
+	@$(shell) cd $(OPENSHIFT_POWERVS_SCRIPT_DEPLOY_DIR) && ./openshift-install-powervs create -ignore-os-checks -skip-bootstrap-delete
 
 .PHONY: deploy\:openshift4\:powervs\:script\:destroy
 ## Destroy openshift4 on powervs deployment resources
