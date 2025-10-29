@@ -179,7 +179,7 @@ pipeline {
                     env.MESSAGE+=", Found Kdump Crash logs :e2e-unstable:"
                 }
             }
-            //notifyBySlack(currentBuild.result, env.MESSAGE)
+            notifyBySlack(currentBuild.result, env.MESSAGE)
             cleanWs()
         }
     }
