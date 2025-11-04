@@ -20,7 +20,7 @@ pipeline {
 
         IBM_CLOUD_REGION = "mon"
         IBM_CLOUD_ZONE = "mon01"
-        SERVICE_INSTANCE_ID = "7545067f-dc8c-40d3-be18-13f433d19b62"
+        SERVICE_INSTANCE_ID = "3b37604e-8f2e-4feb-b3d9-9c844dd4507a"
 
         BASTION_IMAGE = "rhel-96"
         RHCOS_IMAGE = "rhcos-419"
@@ -93,7 +93,8 @@ pipeline {
                         }
                         if (fileExists("deploy/artifactory/${BASTION_IMAGE_FILE}")) {
                             env.BASTION_IMAGE_NAME = readFile "deploy/artifactory/${BASTION_IMAGE_FILE}"
-                            env.BASTION_IMAGE_NAME = env.BASTION_IMAGE_NAME.trim()
+                            //env.BASTION_IMAGE_NAME = env.BASTION_IMAGE_NAME.trim()
+                            env.BASTION_IMAGE_NAME = "rhel-96-04282025"
                         }
                         else{
                             echo "${BASTION_IMAGE_FILE} file does not exist. Please check poll-powervs-job"
@@ -101,7 +102,8 @@ pipeline {
                         }
                         if (fileExists("deploy/artifactory/${RHCOS_IMAGE_FILE}")) {
                             env.RHCOS_IMAGE_NAME = readFile "deploy/artifactory/${RHCOS_IMAGE_FILE}"
-                            env.RHCOS_IMAGE_NAME = env.RHCOS_IMAGE_NAME.trim()
+                            //env.RHCOS_IMAGE_NAME = env.RHCOS_IMAGE_NAME.trim()
+                            env.RHCOS_IMAGE_NAME = "rhcos-96-20251027-tier1"
                         }
                         else{
                             echo "${RHCOS_IMAGE_FILE} file does not exist. Please check poll-powervs-job"
