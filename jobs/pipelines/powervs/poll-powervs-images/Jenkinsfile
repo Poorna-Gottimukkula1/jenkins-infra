@@ -1,13 +1,7 @@
 @Library('jenkins-upstream-library') _
 //Define Global variable
 def INSTANCE_NAME_LIST = [
-                    "rdr-ocp-cicd-montreal01",
-                    "rdr-ocp-upi-validation-osa21",
-                    "rdr-ocp-upi-validation-tor01",
-                    "rdr-ocp-storage-sao01-odf",
-                    "rdr-ocp-storage-lon06-odf",
-                    "rdr-ocp-storage-syd05-odf",
-                    "rdr-ocp-storage-osa21-odf"
+                    "rdr-ocp-cicd-montreal01"
                     ]
 pipeline {
     agent {
