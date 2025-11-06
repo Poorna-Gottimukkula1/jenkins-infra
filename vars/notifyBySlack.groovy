@@ -9,17 +9,17 @@ def call(String buildStatus = 'STARTED', String message) {
     if (buildStatus == 'STARTED') {
         colorSlack = '#D4DADF'
     } else if (buildStatus == 'SUCCESS') {
-        icon = ':ibmpower1: :openshift: :sparkles:'
+        slackEmoji = ':ibmpower1: :openshift: :sparkles:'
         colorSlack = '#BDFFC3'
     } else if (buildStatus == 'UNSTABLE') {
         colorSlack = '#FFFE89'
-        icon = ':ibmpower1: :openshift: :e2e-unstable:'
+        slackEmoji = ':ibmpower1: :openshift: :e2e-unstable:'
     } else {
         colorSlack = '#FF9FA1'
-        icon = ':ibmpower1: :openshift: :fire:'
+        slackEmoji = ':ibmpower1: :openshift: :fire:'
     }
 
-    def msgSlack = "${icon} ${buildStatus}: `${decodedJobName}` #${env.BUILD_NUMBER}: (<${env.BUILD_URL}|Open>) ${message}"
+    def msgSlack = "${slackEmoji} ${buildStatus}: `${decodedJobName}` #${env.BUILD_NUMBER}: (<${env.BUILD_URL}|Open>) ${message}"
 
     slackSend(color: colorSlack, message: msgSlack)
 }
