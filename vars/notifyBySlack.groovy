@@ -6,19 +6,27 @@ def call(String buildStatus = 'STARTED', String message) {
 
     def colorSlack
 
+    if (POWERVS == true){
+        power = ':powervs: :openshift:'
+    } else if (POWERVS == false) {
+        power = ':ibmpower1: :openshift:'
+    } else {
+        power = ''
+    }
+
+
     if (buildStatus == 'STARTED') {
         colorSlack = '#D4DADF'
     } else if (buildStatus == 'SUCCESS') {
-        slackEmoji = ':ibmpower1: :openshift: :sparkles:'
+        slackEmoji = "${power} :sparkles:"
         colorSlack = '#BDFFC3'
     } else if (buildStatus == 'UNSTABLE') {
         colorSlack = '#FFFE89'
-        slackEmoji = ':ibmpower1: :openshift: :e2e-unstable:'
+        slackEmoji = "${power} :e2e-unstable:"
     } else {
         colorSlack = '#FF9FA1'
-        slackEmoji = ':ibmpower1: :openshift: :fire:'
+        slackEmoji = "${power} :fire:"
     }
-
     def msgSlack = "${slackEmoji} ${buildStatus}: `${decodedJobName}` #${env.BUILD_NUMBER}: (<${env.BUILD_URL}|Open>) ${message}"
 
     slackSend(color: colorSlack, message: msgSlack)
