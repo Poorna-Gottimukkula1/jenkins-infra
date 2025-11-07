@@ -4,14 +4,15 @@ def call(String buildStatus = 'STARTED', String message) {
     // Replace encoded slashes.
     def decodedJobName = env.JOB_NAME.replaceAll("%2F", "/")
 
-    def colorSlack
+    def colorSlack = ''
+    def slackEmoji = ''
+    def power = ''
+    def build_status = ''
 
     if (POWERVS == true){
         power = ':powervs: :openshift:'
     } else if (POWERVS == false) {
         power = ':ibmpower1: :openshift:'
-    } else {
-        power = ''
     }
 
 
@@ -19,13 +20,20 @@ def call(String buildStatus = 'STARTED', String message) {
         colorSlack = '#D4DADF'
     } else if (buildStatus == 'SUCCESS') {
         slackEmoji = "${power} :sparkles:"
-        colorSlack = '#BDFFC3'
+        colorSlack = '#9affa3ff'
     } else if (buildStatus == 'UNSTABLE') {
-        colorSlack = '#FFFE89'
+        colorSlack = '#fcfa6dff'
         slackEmoji = "${power} :e2e-unstable:"
     } else {
-        colorSlack = '#FF9FA1'
-        slackEmoji = "${power} :fire:"
+        // Distinguish between aborted and failed
+        if (currentBuild.result == 'ABORTED') {
+            build_status = ':aborted-build:'
+        } else {
+            build_status = ':fire:'
+        }
+        colorSlack = '#fd7d7fff'
+        slackEmoji = "${power} ${build_status}"
+
     }
     def msgSlack = "${slackEmoji} ${buildStatus}: `${decodedJobName}` #${env.BUILD_NUMBER}: (<${env.BUILD_URL}|Open>) ${message}"
 
