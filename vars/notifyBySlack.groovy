@@ -9,12 +9,11 @@ def call(String buildStatus = 'STARTED', String message) {
     def power = ''
     def build_status = ''
 
-    if (POWERVS == true){
+    if (env.POWERVS == "true"){
         power = ':powervs: :openshift:'
-    } else if (POWERVS == false) {
+    } else if (env.POWERVS == "false") {
         power = ':ibmpower2: :openshift:'
     }
-
 
     if (buildStatus == 'STARTED') {
         colorSlack = '#D4DADF'
