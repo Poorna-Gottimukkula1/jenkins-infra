@@ -12,7 +12,7 @@ def call(String buildStatus = 'STARTED', String message) {
     if (POWERVS == true){
         power = ':powervs: :openshift:'
     } else if (POWERVS == false) {
-        power = ':ibmpower1: :openshift:'
+        power = ':ibmpower2: :openshift:'
     }
 
 
@@ -27,7 +27,7 @@ def call(String buildStatus = 'STARTED', String message) {
     } else {
         // Distinguish between aborted and failed
         if (currentBuild.result == 'ABORTED') {
-            build_status = ':aborted-build:'
+            build_status = ':aborted:'
         } else {
             build_status = ':fire:'
         }
