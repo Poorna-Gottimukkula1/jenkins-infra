@@ -18,11 +18,11 @@ def call(String buildStatus = 'STARTED', String message) {
     if (buildStatus == 'STARTED') {
         colorSlack = '#D4DADF'
     } else if (buildStatus == 'SUCCESS') {
-        slackEmoji = "${power} ':sparkles:'"
+        slackEmoji = "${power} :sparkles:"
         colorSlack = '#9affa3ff'
     } else if (buildStatus == 'UNSTABLE') {
         colorSlack = '#fcfa6dff'
-        slackEmoji = "${power} ':e2e-unstable:'"
+        slackEmoji = "${power} :e2e-unstable:"
     } else {
         // Distinguish between aborted and failed
         if (currentBuild.result == 'ABORTED') {
