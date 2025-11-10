@@ -4,7 +4,7 @@ def call(String buildStatus = 'STARTED', String message) {
     // Replace encoded slashes.
     def decodedJobName = env.JOB_NAME.replaceAll("%2F", "/")
 
-    def colorSlack = ''
+    def colorSlack
     def slackEmoji = ''
     def power = ''
     def build_status = ''
