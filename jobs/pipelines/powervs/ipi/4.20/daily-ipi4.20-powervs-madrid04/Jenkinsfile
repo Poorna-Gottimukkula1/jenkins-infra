@@ -1,0 +1,215 @@
+@Library('jenkins-upstream-library') _
+
+pipeline {
+    agent {
+        kubernetes {
+            inheritFrom 'jenkins-agent'
+        }
+    }
+    environment {
+        //users and credentials. All must be defined in Jenkins Credentials
+        PULL_SECRET = credentials('PULL_SECRET')
+        GITHUB_USER = credentials('GITHUB_USER')
+        GITHUB_TOKEN = credentials('GITHUB_TOKEN')
+        IBMID="ltccci@in.ibm.com"
+        IBMCLOUD_API_KEY=credentials('IBMCLOUD_UPSTREAM_CI_API_KEY_1')
+        IC_API_KEY=credentials('IBMCLOUD_UPSTREAM_CI_API_KEY_1')
+
+        // Cloud Controller Manager API Key
+        IBMCLOUD_OCCMICCC_API_KEY=credentials('IBMCLOUD_OCCMICCC_API_KEY')
+        // Ingress Operator API Key
+        IBMCLOUD_OIOCCC_API_KEY=credentials('IBMCLOUD_OIOCCC_API_KEY')
+        // Machine API Key
+        IBMCLOUD_OMAPCC_API_KEY=credentials('IBMCLOUD_OMAPCC_API_KEY')
+        // CSI Driver API key
+        IBMCLOUD_OCCDIPCCC_API_KEY=credentials('IBMCLOUD_OCCDIPCCC_API_KEY')
+        // Storage Operator API key
+        IBMCLOUD_OIRICCC_API_KEY=credentials('IBMCLOUD_OIRICCC_API_KEY')
+
+        //PowerVS specific variables
+        POWERVS_REGION = "mad"
+        POWERVS_ZONE = "mad04"
+        SYS_TYPE = "s1022"
+        SERVICE_INSTANCE_GUID = "2e322992-9e36-43db-a017-bcc364bfb4b2"
+        VPCREGION= "eu-es"
+        RESOURCE_GROUP="ibm-internal-cicd-resource-group"
+        SERVICE_INSTANCE="rdr-ipi-cicd-madrid04"
+
+        JENKINS_TOKEN=""
+
+        BASEDOMAIN="ppc64le-cloud.cis.ibm.net"
+        OCP_RELEASE = "4.20"
+        CLUSTER_NAME="rdr-cicd-mad04-420"
+        CLUSTER_DIR="./ipi-install"
+        OPENSHIFT_CLIENT_TARBALL_AMD64="https://mirror.openshift.com/pub/openshift-v4/amd64/clients/ocp-dev-preview/candidate-4.20/openshift-client-linux.tar.gz"
+        //OPENSHIFT_INSTALLER_URL="https://mirror.openshift.com/pub/openshift-v4/amd64/clients/ocp-dev-preview/candidate-4.20/openshift-install-linux.tar.gz"
+        POWERVS = true
+	 }
+    stages {
+        stage('pull artifact') {
+            steps {
+                getArtifacts("mirror-openshift-release", "latest-${OCP_RELEASE}-build.txt" )
+            }
+        }
+
+        stage('Initialize Environment') {
+            steps {
+                initializeEnvironment("${VPCREGION}","${RESOURCE_GROUP}")
+            }
+        }
+        //Checkout the installer git repo
+        stage('IPI run prepare') {
+            steps {
+                script {
+                    ansiColor('xterm') {
+                        echo ""
+                    }
+                    try
+                    {
+                        env.OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE = ""
+                        if (fileExists("deploy/artifactory/latest-${OCP_RELEASE}-build.txt")) {
+                            env.OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE = readFile "deploy/artifactory/latest-${OCP_RELEASE}-build.txt"
+                            env.OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE = env.OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE.trim()
+                            env.OPENSHIFT_INSTALL_RELEASE_VERSION = env.OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE.split(":")[1].trim()
+                        }
+                        else {
+                            echo "latest-${OCP_RELEASE}-build.txt file does not exist. Please check mirror-openshift-release job"
+                            throw err
+                        }
+                            sh '''
+                                cd ${WORKSPACE}/deploy
+                                echo ${PULL_SECRET} > ~/.pullSecret
+                                cp -rf ${WORKSPACE}/deploy/id_rsa.pub ~/.ssh/id_installer_rsa.pub
+                                git clone https://github.com/Poorna-Gottimukkula1/powervs-hack.git
+                                oc adm release extract --tools ${OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE} --to openshift-tools -a ~/.pullSecret
+                                tar -xvf ./openshift-tools/openshift-install-linux-${OPENSHIFT_INSTALL_RELEASE_VERSION}.tar.gz  -C /usr/local/bin
+                                tar -xvf ./openshift-tools/openshift-client-linux-${OPENSHIFT_INSTALL_RELEASE_VERSION}.tar.gz  -C /usr/bin
+                                rm -rf ./openshift-tools
+                                #curl -L "${OPENSHIFT_INSTALLER_URL}" > openshift-install-linux.tar.gz
+                                #tar -xvf openshift-install-linux.tar.gz  -C /usr/local/bin
+                                 # setup oc client
+                                #if [ ${OPENSHIFT_CLIENT_TARBALL_AMD64} ]; then
+                                #    wget --quiet "${OPENSHIFT_CLIENT_TARBALL_AMD64}" -O - | tar -xz
+                                #    [ $? -ne 0 ] && echo "unable to get oc tarball" && exit 1
+                                #    cp kubectl oc /usr/bin/
+                                #fi
+                                oc version
+                                openshift-install version
+                                sed -i "s|\\.Payload\\.cloudConnections\\[\\]|\\.cloudConnections\\[\\]|g" ./powervs-hack/scripts/create-cluster.sh
+                                sed -i "s|\\.Payload\\.jobs\\[\\]|\\.jobs\\[\\]|g" ./powervs-hack/scripts/create-cluster.sh
+                                sed -i "s|export OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE.*$|export OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE=\\"${OPENSHIFT_INSTALL_RELEASE_IMAGE_OVERRIDE}\\"|g" ./powervs-hack/scripts/create-cluster.sh
+                                sed -i "s|export OPENSHIFT_INSTALL_OS_IMAGE_OVERRIDE.*$||g" ./powervs-hack/scripts/create-cluster.sh
+                                sed -i "s|platform: {}|platform: \\n    powervs:\\n      processors: \\"0.5\\"\\n      sysType: ${SYS_TYPE}|g" ./powervs-hack/scripts/create-cluster.sh
+                            '''
+                        currentBuild.description = "OCP Build: ${env.OPENSHIFT_INSTALL_RELEASE_VERSION} \n SysType: ${env.SYS_TYPE}"
+                    }
+                    catch (err)
+                    {
+                        echo 'Error ! IPI cluster setup failed !'
+                        env.FAILED_STAGE=env.STAGE_NAME
+                        throw err
+                    }
+                }
+            }
+        }
+        stage('Create IPI cluster') {
+            steps {
+                createIPICluster()
+            }
+        }
+        stage('Validate CO status') {
+            when { expression { return env.DEPLOYMENT_STATUS == "true"; } }
+            steps {
+                 script {
+                    ansiColor('xterm') {
+                        echo ""
+                    }
+                    try {
+                        // Get Cluster Operators status
+                        sh '''#!/bin/bash
+                            cd ${WORKSPACE}/deploy
+                            rm -rf ~/.kube
+                            mkdir ~/.kube
+                            cat ${CLUSTER_DIR}/auth/kubeconfig
+                            cp ${CLUSTER_DIR}/auth/kubeconfig ~/.kube/config
+                            cat ~/.kube/config
+                            echo 'oc version'
+                            oc version
+                            echo 'Setting up kubectl!'
+                            oc get nodes
+                            cd ${WORKSPACE}
+                            sleep_time=300
+                            count=0
+                            for((i=0;i<18;++i)) do
+                                count=$(oc get co --no-headers | awk '{ print $3 $4 $5 }' | grep -w -v TrueFalseFalse | wc -l)
+                                if [ $count -ne 0 ]; then
+                                    echo "sleeping for 5 mins all co are not up"
+                                    sleep $sleep_time
+                                elif [[ $(oc get co --no-headers) == *"error"* ]]; then
+                                    count=1
+                                    break
+                                else
+                                    echo "All cluster operators are up and running"
+                                    echo "All cluster operators were up and running" > ${WORKSPACE}/co_status.txt
+                                    count=0
+                                    oc get co
+                                    break
+                                fi
+                            done
+                            if [ $count -ne 0 ]; then
+                                oc get co
+                                echo "Cluster operators were in degraded state after 90 mins" > ${WORKSPACE}/co_status.txt
+                                echo "Cluster operators are in degraded state after 90 mins Tearing off cluster!!"
+                                exit 1
+                            fi
+                            '''
+                    }
+                    catch (err) {
+                        echo 'Error ! All Cluster Operators are not Up  !'
+                        env.FAILED_STAGE=env.STAGE_NAME
+                        throw err
+                    }
+                }
+
+            }
+        }
+    }
+    post {
+        always {
+            archiveAllArtifacts("deploy/metadata.json")
+            script {
+               sh '''#!/bin/bash
+                echo "Cleanup IPI cluster"
+                if [ -d ${WORKSPACE}/deploy ];then
+                    cd ${WORKSPACE}/deploy
+                else
+                  exit 1
+                fi
+                ibmcloud login -a cloud.ibm.com -r ${VPCREGION} -g ${RESOURCE_GROUP} -q --apikey=${IBMCLOUD_API_KEY}
+                for I in infrastructure-service cloud-internet-services dl-cli dns; do
+                   ibmcloud plugin install ${I}
+                done
+                ./powervs-hack/scripts/dump-powervs.sh
+                retries=0
+                until [ "$retries" -ge 3 ]
+                do
+                  cp -f ${CLUSTER_DIR}/metadata.json ./metadata_copy.json
+                  openshift-install destroy cluster  --log-level=debug --dir ${CLUSTER_DIR} || true
+                  mv -f ./metadata_copy.json ${CLUSTER_DIR}/metadata.json
+                  retries=$((retries+1))
+                done
+                #Get connections
+                ibmcloud login -a cloud.ibm.com -r ${VPCREGION} -g ${RESOURCE_GROUP} -q --apikey=${IBMCLOUD_API_KEY}
+                cons=$(ibmcloud pi cloud-connection ls| grep "cloud-con-rdr-cicd"|awk '{print $1}')
+                echo "$cons"| while IFS= read -r line ; do ibmcloud pi cloud-connection delete $line; done || true
+                #Get DHCP
+                ./powervs-hack/scripts/get-dhcp.sh || true
+                dhcp_id=$(./powervs-hack/scripts/get-dhcp.sh | awk 'FNR == 4 {print $1}')
+                ./powervs-hack/scripts/get-dhcp.sh $dhcp_id -d || ibmcloud pi ins delete $dhcp_id || true
+                '''
+            }
+            notifyBySlack(currentBuild.result, env.MESSAGE)
+            cleanWs()
+        }
+    }
+}
