@@ -57,7 +57,7 @@ def call() {
                 env.INSTANCE_NAME = "rdr-cicd-${env.OCP_RELEASE.replaceAll('\\.', '')}"
                 env.SETUP_SQUID_PROXY = "true"
                 env.STORAGE_TYPE = "nfs"
-                env.SYSTEM_TYPE = "s922"
+                env.SYSTEM_TYPE = "e980"
                 //E2e Variables
                 env.E2E_GIT = "https://github.com/openshift/origin"
                 env.E2E_BRANCH="release-${env.OCP_RELEASE}"

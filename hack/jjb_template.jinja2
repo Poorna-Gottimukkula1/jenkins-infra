@@ -3,31 +3,7 @@
     name: {{ JOB_NAME }}
     project-type: pipeline
     triggers:
-      - timed: {% if 'daily-ocp4.21-powervm-p9-min' in JOB_NAME %}"00 00 * * * "
-        {% elif 'daily-ocp4.20-powervm-p9-min' in JOB_NAME %}"00 01 * * * "
-
-        {% elif 'weekly-ocp4.16-to-4.17-powervm-p9-min-upgrade' in JOB_NAME %}"00 09 * * 5 "
-        {% elif 'weekly-ocp4.17-to-4.18-powervm-p9-min-upgrade' in JOB_NAME %}"00 09 * * 4 "
-        {% elif 'weekly-ocp4.18-to-4.19-powervm-p9-min-upgrade' in JOB_NAME %}"00 09 * * 3 "
-        {% elif 'weekly-ocp4.19-to-4.20-powervm-p9-min-upgrade' in JOB_NAME %}"00 09 * * 2 "
-        {% elif 'weekly-ocp4.20-to-4.21-powervm-p9-min-upgrade' in JOB_NAME %}"00 09 * * 1 "
-
-        {% elif 'weekly-ocp4.19-powervm-p9-min' in JOB_NAME %}"00 16 * * 2 "
-        {% elif 'weekly-ocp4.21-powervm-p9-vscsi-multipath' in JOB_NAME %}"00 16 * * 1 "
-        {% elif 'weekly-ocp4.20-powervm-p9-verification' in JOB_NAME %}"00 09 * * 6 "
-        {% elif 'weekly-ocp4.21-powervm-p9-npiv' in JOB_NAME %}"00 09 * * 7 "
-        {% elif 'weekly-ocp4.21-powervm-p9-verification' in JOB_NAME %}"00 09 * * 5 "
-        {% elif 'weekly-ocp4.21-powervm-p9-sriov' in JOB_NAME %}"00 16 * * 4 "
-
-        {% elif 'odf4.21-powervm-p9-tier-1' in JOB_NAME %}"00 20 * * 5 "
-        {% elif 'odf4.21-powervm-p9-tier-2' in JOB_NAME %}"00 20 * * 6 "
-        {% elif 'odf4.21-powervm-p9-tier-3' in JOB_NAME %}"00 20 * * 1 "
-        {% elif 'odf4.21-powervm-p9-tier-4a' in JOB_NAME %}"00 20 * * 2 "
-        {% elif 'odf4.21-powervm-p9-tier-4b' in JOB_NAME %}"00 20 * * 3 "
-        {% elif 'odf4.21-powervm-p9-tier-4c' in JOB_NAME %}"00 20 * * 4 "
-        {% elif 'odf4.21-powervm-p9-tier-1-buffer-io-disabled' in JOB_NAME %}"00 20 * * 7 "
-
-        {% elif 'daily-ocp4.21-powervs-script-p9-min' in JOB_NAME %}"0 06 * * 1,3,5 "
+      - timed: {% if 'daily-ocp4.21-powervs-script-p9-min' in JOB_NAME %}"0 06 * * 1,3,5 "
         {% elif 'daily-ocp4.20-powervs-script-p9-min' in JOB_NAME %}"0 06 * * 2 "
         {% elif 'daily-ipi4.20-powervs-frankfurt1' in JOB_NAME %}"0 0 * * 1 "
         {% elif 'daily-ipi4.20-powervs-washingtondc06' in JOB_NAME %}"0 2 * * 1 "
@@ -44,7 +20,6 @@
         {% elif 'powervs-cleanup-job' in JOB_NAME %}"0 0 * * * "
 
         {% elif 'mirror-openshift-release' in JOB_NAME %}"@hourly"
-        {% elif 'poll-powervc-images' in JOB_NAME %}"@daily"
         {% elif 'poll-powervs-images' in JOB_NAME %}"@daily"
         {% else %}""
         {% endif %}
@@ -73,9 +48,9 @@
     pipeline-scm:
       scm:
         - git:
-            url: https://github.com/ppc64le-cloud/jenkins-infra.git
+            url: https://github.com/Poorna-Gottimukkula1/jenkins-infra.git
             branches:
-              - master
+              - upstream-jenkins-jobs-update
             credentials-id: github
             clean: true
       script-path: {{ JENKINS_FILE }}
