@@ -22,8 +22,8 @@ pipeline {
         IBM_CLOUD_ZONE = "mon01"
         SERVICE_INSTANCE_ID = "7545067f-dc8c-40d3-be18-13f433d19b62"
 
-        BASTION_IMAGE = "rhel-95"
-        RHCOS_IMAGE = "rhcos-419"
+        BASTION_IMAGE = "rhel-96"
+        RHCOS_IMAGE = "rhcos-96"
         BASTION_IMAGE_FILE = "latest-${BASTION_IMAGE}-rdr-ocp-cicd-montreal01.txt"
         RHCOS_IMAGE_FILE = "latest-${RHCOS_IMAGE}-rdr-ocp-cicd-montreal01.txt"
         OCP_RELEASE = "4.21"
