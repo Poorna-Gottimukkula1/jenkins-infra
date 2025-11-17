@@ -92,8 +92,7 @@ pipeline {
                             throw err
                         }
                         if (fileExists("deploy/artifactory/${BASTION_IMAGE_FILE}")) {
-                            //env.BASTION_IMAGE_NAME = readFile "deploy/artifactory/${BASTION_IMAGE_FILE}"
-                            env.BASTION_IMAGE_NAME = "RHEL9-SP6"
+                            env.BASTION_IMAGE_NAME = readFile "deploy/artifactory/${BASTION_IMAGE_FILE}"
                             env.BASTION_IMAGE_NAME = env.BASTION_IMAGE_NAME.trim()
                         }
                         else{
