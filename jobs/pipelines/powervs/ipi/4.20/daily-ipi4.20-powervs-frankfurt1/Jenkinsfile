@@ -29,7 +29,7 @@ pipeline {
         //PowerVS specific variables
         POWERVS_REGION = "eu-de"
         POWERVS_ZONE = "eu-de-1"
-        SYS_TYPE = "e980"
+        SYS_TYPE = "s1022"
         SERVICE_INSTANCE_GUID = "e6e8ab39-06f3-45c3-b90f-f35088aece99"
         VPCREGION= "eu-de"
         RESOURCE_GROUP="ibm-internal-cicd-resource-group"
@@ -41,7 +41,7 @@ pipeline {
         OCP_RELEASE = "4.20"
         CLUSTER_NAME="rdr-cicd-fra1-420"
         CLUSTER_DIR="./ipi-install"
-        OPENSHIFT_CLIENT_TARBALL_AMD64="https://mirror.openshift.com/pub/openshift-v4/amd64/clients/ocp-dev-preview/candidate-4.20/openshift-client-linux.tar.gz"
+        OPENSHIFT_CLIENT_TARBALL_AMD64="https://mirror.openshift.com/pub/openshift-v4/amd64/clients/ocp/candidate-4.20/openshift-client-linux.tar.gz"
         //OPENSHIFT_INSTALLER_URL="https://mirror.openshift.com/pub/openshift-v4/amd64/clients/ocp-dev-preview/candidate-4.20/openshift-install-linux.tar.gz"
         POWERVS = true
 	 }
