@@ -269,6 +269,7 @@ pipeline {
         }
         stage('Waiting to timeout') {
             steps {
+                archiveAllArtifacts("deploy/id_rsa")
                 script {
                     ansiColor('xterm') {
                         echo ""
