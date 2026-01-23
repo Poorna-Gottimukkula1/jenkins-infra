@@ -1,0 +1,173 @@
+pipeline {
+    agent {
+        label 'ppc64le-kvm'
+    }
+
+    options {
+        timeout(time: 12, unit: 'HOURS')
+        buildDiscarder(logRotator(numToKeepStr: '15', artifactNumToKeepStr: '15'))
+        durabilityHint('PERFORMANCE_OPTIMIZED')
+        timestamps()
+    }
+
+    parameters {
+        choice(
+            name: 'STREAM',
+            choices: ['testing-devel', 'rawhide', 'testing', 'stable', 'next'],
+            description: 'Fedora CoreOS stream'
+        )
+    }
+
+    environment {
+        ARCH = 'ppc64le'
+        WORKDIR = "${WORKSPACE}/fcos"
+        COREOS_ASSEMBLER_CONTAINER = 'quay.io/coreos-assembler/coreos-assembler:latest'
+        CONFIG_REPO = 'https://github.com/coreos/fedora-coreos-config.git'
+    }
+
+    stages {
+        stage('Prepare Workspace') {
+            steps {
+                sh '''
+                    set -eux
+                    mkdir -p ${WORKDIR}
+                '''
+            }
+        }
+
+        stage('Pull COSA Image') {
+            steps {
+                sh '''
+                    set -eux
+                    podman pull ${COREOS_ASSEMBLER_CONTAINER}
+                '''
+            }
+        }
+
+        stage('Define cosa() helper') {
+            steps {
+                sh '''
+                    set -eux
+                    cat << 'EOF' > ${WORKSPACE}/cosa.sh
+                    cosa() {
+                        env | grep COREOS_ASSEMBLER || true
+                        local -r COREOS_ASSEMBLER_CONTAINER_LATEST="quay.io/coreos-assembler/coreos-assembler:latest"
+
+                        if [[ -z ${COREOS_ASSEMBLER_CONTAINER} ]] && podman image exists ${COREOS_ASSEMBLER_CONTAINER_LATEST}; then
+                            local -r cosa_build_date_str="$(podman inspect -f "{{.Created}}" ${COREOS_ASSEMBLER_CONTAINER_LATEST} | awk '{print $1}')"
+                            local -r cosa_build_date="$(date -d ${cosa_build_date_str} +%s)"
+                            if [[ $(date +%s) -ge $((cosa_build_date + 60*60*24*7)) ]]; then
+                                echo "----"
+                                echo "COSA container image is more than a week old."
+                                echo "Consider running: podman pull ${COREOS_ASSEMBLER_CONTAINER_LATEST}"
+                                echo "----"
+                                sleep 10
+                            fi
+                        fi
+
+                        set -x
+                        podman run --rm -ti \
+                          --security-opt=label=disable \
+                          --privileged \
+                          --userns=keep-id:uid=1000,gid=1000 \
+                          -v=${WORKDIR}:/srv \
+                          --device=/dev/kvm \
+                          --device=/dev/fuse \
+                          --tmpfs=/tmp \
+                          -v=/var/tmp:/var/tmp \
+                          --name=cosa \
+                          ${COREOS_ASSEMBLER_CONTAINER_RUNTIME_ARGS} \
+                          ${COREOS_ASSEMBLER_CONTAINER:-$COREOS_ASSEMBLER_CONTAINER_LATEST} "$@"
+                        rc=$?
+                        set +x
+                        return $rc
+                    }
+                    export -f cosa
+                    EOF
+                '''
+            }
+        }
+
+        stage('COSA Init') {
+            steps {
+                sh '''
+                    set -eux
+                    source ${WORKSPACE}/cosa.sh
+                    cd ${WORKDIR}
+
+                    if [ ! -d src/config ]; then
+                        echo "Initializing stream: ${STREAM}"
+                        cosa init ${CONFIG_REPO} --branch ${STREAM}
+                    else
+                        echo "COSA already initialized"
+                    fi
+                '''
+            }
+        }
+
+        stage('COSA Fetch') {
+            steps {
+                sh '''
+                    set -eux
+                    source ${WORKSPACE}/cosa.sh
+                    cd ${WORKDIR}
+
+                    cosa fetch
+                '''
+            }
+        }
+
+        stage('COSA Build') {
+            steps {
+                sh '''
+                    set -eux
+                    source ${WORKSPACE}/cosa.sh
+                    cd ${WORKDIR}
+
+                    cosa build
+                '''
+            }
+        }
+
+        stage('COSA osbuild qemu') {
+            steps {
+                sh '''
+                    set -eux
+                    source ${WORKSPACE}/cosa.sh
+                    cd ${WORKDIR}
+
+                    cosa osbuild qemu
+                '''
+            }
+        }
+
+        stage('Kola reprovision tests') {
+            steps {
+                sh '''
+                    set -eux
+                    source ${WORKSPACE}/cosa.sh
+                    cd ${WORKDIR}
+
+                    cosa kola run \
+                      --rerun \
+                      --allow-rerun-success=tags=needs-internet \
+                      --build=latest \
+                      --on-warn-failure-exit-77 \
+                      --arch=ppc64le \
+                      --tag=reprovision
+                '''
+            }
+        }
+    }
+    post {
+        success {
+            echo "FCOS ${STREAM} ppc64le build + kola tests successful"
+        }
+        failure {
+            echo "Build or kola tests failed"
+        }
+        always {
+            sh 'podman ps -a || true'
+        }
+    }
+}
