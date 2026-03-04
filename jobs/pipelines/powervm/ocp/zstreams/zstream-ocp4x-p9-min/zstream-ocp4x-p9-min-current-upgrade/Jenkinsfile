@@ -107,8 +107,8 @@ pipeline {
                         env.REDHAT_RELEASE = "9.7"
                         env.GOLANG_TARBALL = "https://golang.org/dl/go1.23.4.linux-ppc64le.tar.gz"
                     }
-                    // Added a condition for RHCOS_RELEASE to be set to 4.19 for OCP 4.20/4.21
-                    if (env.OCP_RELEASE == "4.20" || env.OCP_RELEASE == "4.21"){
+                    // Added a condition for RHCOS_RELEASE to be set to 4.19 for OCP 4.20/4.21/4.22
+                    if (env.OCP_RELEASE == "4.20" || env.OCP_RELEASE == "4.21" || env.OCP_RELEASE == "4.22"){
                         env.RHCOS_RELEASE = "4.19"
                     }
                     else {
