@@ -118,7 +118,7 @@ pipeline {
                     env.MASTER_MEMORY = "32"
                     env.WORKER_MEMORY = "32"
                     if ( ENABLE_MULTI == "true") {
-                        if (env.OCP_RELEASE == "4.21") {
+                        if (env.OCP_RELEASE == "4.22") {
                             env.OPENSHIFT_INSTALL_TARBALL="https://mirror.openshift.com/pub/openshift-v4/multi/clients/ocp-dev-preview/candidate-${OCP_RELEASE}/ppc64le/openshift-install-linux.tar.gz"
                             env.OPENSHIFT_CLIENT_TARBALL="https://mirror.openshift.com/pub/openshift-v4/multi/clients/ocp-dev-preview/candidate-${OCP_RELEASE}/ppc64le/openshift-client-linux.tar.gz"
                         }
