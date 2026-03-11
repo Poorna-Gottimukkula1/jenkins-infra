@@ -62,6 +62,10 @@ pipeline {
             steps {
                 setupCommonEnvironmentVariables()
                 setupClusterConfig("${CONFIG_TYPE}")
+                script{
+                    env.INSTALL_PLAYBOOK_REPO = "https://github.com/Poorna-Gottimukkula1/ocp4-playbooks"
+                    env.INSTALL_PLAYBOOK_TAG = "test-422"
+                }
             }
         }
         stage('pull artifact') {
