@@ -26,7 +26,7 @@ pipeline {
         HARDWARE_CHOSE = "P9"
         TERRAFORM_VER = "1.14.4"
         OCP_RELEASE="4.22"
-        RHCOS_RELEASE="4.19"
+        RHCOS_RELEASE="10.2"
         TARGET = "deploy-openshift4-powervc"
         TEMPLATE_FILE = ".${TARGET}.tfvars.template"
         POWERVS = false

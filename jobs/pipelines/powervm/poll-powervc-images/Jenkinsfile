@@ -44,6 +44,12 @@ pipeline {
                             cat images.scnlcicdcloud.all.date.sorted.txt | grep -v ssp | grep 'cicd-rhcos-4\\.18\\|cicd-rhcos-418' | awk '{print $2" "$1}'|head -n 1 > cicd-rhcos-4.18.latest.txt || true
                             cat images.scnlcicdcloud.all.date.sorted.txt | grep -v ssp | grep 'cicd-rhcos-4\\.19\\|cicd-rhcos-419' | awk '{print $2" "$1}'|head -n 1 > cicd-rhcos-4.19.latest.txt || true
 
+                            ## RHEL RHCOS images for worker/master nodes
+                            cat images.scnlcicdcloud.all.date.sorted.txt | grep -v ssp | grep 'cicd-rhcos-10\\.1' | awk '{print $2" "$1}'|head -n 1 > cicd-rhcos-10.1.latest.txt || true
+                            cat images.scnlcicdcloud.all.date.sorted.txt | grep -v ssp | grep 'cicd-rhcos-10\\.2' | awk '{print $2" "$1}'|head -n 1 > cicd-rhcos-10.2.latest.txt || true
+                            cat images.scnlcicdcloud.all.date.sorted.txt | grep -v ssp | grep 'cicd-rhcos-9-6' | awk '{print $2" "$1}'|head -n 1 > cicd-rhcos-9.6.latest.txt || true
+                            cat images.scnlcicdcloud.all.date.sorted.txt | grep -v ssp | grep 'cicd-rhcos-9-8' | awk '{print $2" "$1}'|head -n 1 > cicd-rhcos-9.8.latest.txt || true
+
                             cat images.scnlcicdcloud.all.date.sorted.txt | grep -v ssp | grep 'cicd-rhel8\\.3'  | awk '{print $2" "$1}'|head -n 1 > cicd-rhel-8.3.latest.txt || true
                             cat images.scnlcicdcloud.all.date.sorted.txt | grep -v ssp | grep 'cicd-rhel8\\.4'  | awk '{print $2" "$1}'|head -n 1 > cicd-rhel-8.4.latest.txt || true
                             cat images.scnlcicdcloud.all.date.sorted.txt | grep -v ssp | grep 'cicd-rhel8\\.5'  | awk '{print $2" "$1}'|head -n 1 > cicd-rhel-8.5.latest.txt || true
@@ -73,7 +79,7 @@ pipeline {
         always {
             archiveAllArtifacts("cicd-rhcos-4.11.latest.txt", "cicd-rhcos-4.12.latest.txt", "cicd-rhcos-4.13.latest.txt",
                                 "cicd-rhcos-4.14.latest.txt", "cicd-rhcos-4.15.latest.txt", "cicd-rhcos-4.16.latest.txt", 
-                                "cicd-rhcos-4.17.latest.txt", "cicd-rhcos-4.18.latest.txt",  "cicd-rhcos-4.19.latest.txt", 
+                                "cicd-rhcos-4.17.latest.txt", "cicd-rhcos-4.18.latest.txt",  "cicd-rhcos-4.19.latest.txt", "cicd-rhcos-9.6.latest.txt", "cicd-rhcos-9.8.latest.txt", "cicd-rhcos-10.1.latest.txt", "cicd-rhcos-10.2.latest.txt",
                                 "cicd-rhel-8.3.latest.txt", "cicd-rhel-8.4.latest.txt", "cicd-rhel-8.5.latest.txt" , 
                                 "cicd-rhel-8.6.latest.txt", "cicd-rhel-9.0.latest.txt", "cicd-rhel-9.2.latest.txt", 
                                 "cicd-rhel-9.3.latest.txt", "cicd-rhel-9.4.latest.txt",  "cicd-rhel-9.5.latest.txt", "cicd-rhel-9.6.latest.txt", "cicd-rhel-9.7.latest.txt","cicd-rhel-10.0.latest.txt")
