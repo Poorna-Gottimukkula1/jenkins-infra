@@ -26,7 +26,6 @@ openshift_install_tarball =  "__OPENSHIFT_INSTALL_TARBALL__"
 openshift_client_tarball = "__OPENSHIFT_CLIENT_TARBALL__"
 
 install_playbook_repo = "__INSTALL_PLAYBOOK_REPO__"
-install_playbook_tag = "__INSTALL_PLAYBOOK_TAG__"
 
 release_image_override = "__OPENSHIFT_IMAGE__"
 
