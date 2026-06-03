@@ -190,9 +190,9 @@ pipeline {
                                 // Test AMD64 image
                                 echo "Testing AMD64 image..."
                                 sh """
-                                    docker run --rm --entrypoint /bin/bash ${ppc64leTag} -c "java -version"
-                                    docker run --rm --entrypoint /bin/bash ${ppc64leTag} -c "python3 --version"
-                                    docker run --rm --entrypoint /bin/bash ${ppc64leTag} -c "ansible --version"
+                                    docker run --rm --entrypoint /bin/bash ${amd64Tag} -c "java -version"
+                                    docker run --rm --entrypoint /bin/bash ${amd64Tag} -c "python3 --version"
+                                    docker run --rm --entrypoint /bin/bash ${amd64Tag} -c "ansible --version"
                                 """
                                 
                                 if (params.PUSH_TO_REGISTRY) {

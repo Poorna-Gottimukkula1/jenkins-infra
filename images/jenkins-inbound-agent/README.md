@@ -124,26 +124,48 @@ The Jenkins pipeline is completely independent of the Makefile and uses Docker B
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| BASE_IMAGE_TAG | Base image tag from jenkins/inbound-agent | `3355.v388858a_47b_33-21-jdk17` |
+| BASE_IMAGE_TAG | Base image tag from jenkins/inbound-agent | `latest-jdk17` |
 | DOCKER_REGISTRY | Docker registry URL | `quay.io` |
 | DOCKER_REPO | Docker repository name | `pgottimu/jenkins-inbound-agent` |
-| TAG_STRATEGY | Tag strategy (same-as-base, date-tag, custom) | `same-as-base` |
+| TAG_STRATEGY | Tag strategy (date-tag, same-as-base, custom) | `date-tag` |
 | CUSTOM_TAG | Custom tag (if TAG_STRATEGY is custom) | - |
+| BUILD_AMD64 | Build AMD64 architecture | `true` |
+| BUILD_PPC64LE | Build PPC64LE architecture | `false` |
 | PUSH_TO_REGISTRY | Push images to registry | `false` |
 | BUILD_LATEST | Also tag as "latest" | `false` |
+| REGISTRY_CREDENTIALS_ID | Jenkins credentials ID for Docker registry | `quay-io-credentials` |
 
 ### Tag Strategies
 
-1. **same-as-base** - Use the same tag as the base image
-   - Example: Base `3355.v388858a_47b_33-21-jdk17` → Output `3355.v388858a_47b_33-21-jdk17`
+1. **date-tag** (Default for cron jobs) - Generate date-based tag (DDMMYYYY)
+   - Example: Base `latest-jdk17` → Output `latest-jdk17-03062026`
+   - Format: `{BASE_IMAGE_TAG}-DDMMYYYY`
 
-2. **date-tag** - Generate timestamp-based tag (YYYYMMDD-HHMM)
-   - Example: `20260603-1430`
+2. **same-as-base** - Use the same tag as the base image
+   - Example: Base `3355.v388858a_47b_33-21-jdk17` → Output `3355.v388858a_47b_33-21-jdk17`
 
 3. **custom** - Use custom tag specified in CUSTOM_TAG parameter
    - Example: `v1.0.0`, `production`, etc.
 
 ### Setting Up the Jenkins Job
+
+#### Step 1: Create Jenkins Credentials
+
+Before running the pipeline, create Docker registry credentials in Jenkins:
+
+1. Go to **Jenkins → Manage Jenkins → Credentials**
+2. Select appropriate domain (e.g., Global)
+3. Click **Add Credentials**
+4. Configure:
+   - **Kind**: Username with password
+   - **Scope**: Global
+   - **Username**: Your registry username (e.g., Quay.io robot account)
+   - **Password**: Your registry password/token
+   - **ID**: `quay-io-credentials` (or match REGISTRY_CREDENTIALS_ID parameter)
+   - **Description**: Quay.io Docker Registry Credentials
+5. Click **Create**
+
+#### Step 2: Create Pipeline Job
 
 1. Create a new **Pipeline** job in Jenkins
 2. Configure the pipeline:
@@ -153,6 +175,17 @@ The Jenkins pipeline is completely independent of the Makefile and uses Docker B
    - **Script Path**: `images/jenkins-inbound-agent/Jenkinsfile`
 3. Save the configuration
 4. Run with parameters as needed
+
+#### Step 3: Configure Cron Job (Optional)
+
+For automated daily builds, add a build trigger:
+1. In the job configuration, enable **Build periodically**
+2. Set schedule (e.g., `H 2 * * *` for daily at 2 AM)
+3. The default parameters are optimized for cron jobs:
+   - `BASE_IMAGE_TAG=latest-jdk17`
+   - `TAG_STRATEGY=date-tag`
+   - `BUILD_AMD64=true`
+   - `PUSH_TO_REGISTRY=false` (set to `true` for auto-push)
 
 ### Example Pipeline Runs
 
