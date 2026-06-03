@@ -5,8 +5,8 @@ pipeline {
         // Source image tag
         string(
             name: 'BASE_IMAGE_TAG',
-            defaultValue: '3355.v388858a_47b_33-21-jdk17',
-            description: 'Base image tag from jenkins/inbound-agent (e.g., 3355.v388858a_47b_33-21-jdk17, latest-jdk17)'
+            defaultValue: 'latest-jdk17',
+            description: 'Base image tag from jenkins/inbound-agent (default: latest-jdk17 for cron, can override for manual builds)'
         )
         
         // Destination image configuration
@@ -22,8 +22,8 @@ pipeline {
         )
         choice(
             name: 'TAG_STRATEGY',
-            choices: ['same-as-base', 'date-tag', 'custom'],
-            description: 'Tag strategy: same-as-base (use base tag), date-tag (YYYYMMDD-HHMM), custom (specify below)'
+            choices: ['date-tag', 'same-as-base', 'custom'],
+            description: 'Tag strategy: date-tag (latest-jdk17-DDMMYYYY), same-as-base (use base tag), custom (specify below)'
         )
         string(
             name: 'CUSTOM_TAG',
@@ -72,15 +72,15 @@ pipeline {
                     // Determine the destination image tag based on strategy
                     def imageTag = ''
                     
-                    if (params.TAG_STRATEGY == 'same-as-base') {
-                        imageTag = params.BASE_IMAGE_TAG
-                    } else if (params.TAG_STRATEGY == 'date-tag') {
-                        // Generate date-based tag
+                    if (params.TAG_STRATEGY == 'date-tag') {
+                        // Generate date-based tag: latest-jdk17-DDMMYYYY
                         def dateTag = sh(
-                            script: 'date +%Y%m%d-%H%M',
+                            script: 'date +%d%m%Y',
                             returnStdout: true
                         ).trim()
-                        imageTag = dateTag
+                        imageTag = "${params.BASE_IMAGE_TAG}-${dateTag}"
+                    } else if (params.TAG_STRATEGY == 'same-as-base') {
+                        imageTag = params.BASE_IMAGE_TAG
                     } else {
                         // Use custom tag
                         imageTag = params.CUSTOM_TAG ?: 'latest'
@@ -151,7 +151,7 @@ pipeline {
                                 sh """
                                     DOCKER_BUILDKIT=0 docker build \
                                         --build-arg BASE_IMAGE=${env.BASE_IMAGE} \
-                                        -f Dockerfile.multiarch \
+                                        -f Dockerfile \
                                         -t ${amd64Tag} \
                                         .
                                 """
@@ -186,7 +186,7 @@ pipeline {
                                 sh """
                                     DOCKER_BUILDKIT=0 docker build \
                                         --build-arg BASE_IMAGE=${env.BASE_IMAGE} \
-                                        -f Dockerfile.multiarch \
+                                        -f Dockerfile.ppc64le \
                                         -t ${ppc64leTag} \
                                         .
                                 """
