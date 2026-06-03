@@ -121,23 +121,43 @@ pipeline {
         stage('Setup Build Environment') {
             steps {
                 script {
-                    echo "Checking build environment..."
-                    sh '''
-                        echo "=== Container Runtime ==="
-                        podman --version || docker --version
+                    echo "Detecting container runtime..."
+                    
+                    // Detect container runtime
+                    def runtimeCheck = sh(
+                        script: '''
+                            if command -v podman &> /dev/null; then
+                                echo "podman"
+                            elif command -v docker &> /dev/null; then
+                                echo "docker"
+                            else
+                                echo "none"
+                            fi
+                        ''',
+                        returnStdout: true
+                    ).trim()
+                    
+                    env.CONTAINER_RUNTIME = runtimeCheck
+                    
+                    if (env.CONTAINER_RUNTIME == 'none') {
+                        error("Neither Docker nor Podman found on this agent!")
+                    }
+                    
+                    echo """
+                    ========================================
+                    Build Environment:
+                    ========================================
+                    Container Runtime: ${env.CONTAINER_RUNTIME}
+                    """
+                    
+                    sh """
+                        echo "=== Runtime Version ==="
+                        ${env.CONTAINER_RUNTIME} --version
                         
                         echo "=== System Architecture ==="
                         uname -m
-                        
-                        echo "=== Available Platforms ==="
-                        if command -v podman &> /dev/null; then
-                            echo "Using Podman"
-                            podman info --format '{{.Host.Arch}}'
-                        else
-                            echo "Using Docker"
-                            docker version --format '{{.Server.Arch}}'
-                        fi
-                    '''
+                    """
+                    
                     echo "Build environment ready!"
                 }
             }
@@ -155,27 +175,31 @@ pipeline {
                                 echo "Building AMD64 image"
                                 def amd64Tag = "${params.DOCKER_REGISTRY}/${params.DOCKER_REPO}:${env.IMAGE_TAG}-amd64"
                                 
-                                sh """
-                                    podman build \
-                                        --format docker \
-                                        --platform linux/amd64 \
-                                        --build-arg BASE_IMAGE=${env.BASE_IMAGE} \
-                                        -f Dockerfile.multiarch \
-                                        -t ${amd64Tag} \
-                                        .
+                                def buildCmd = "${env.CONTAINER_RUNTIME} build"
+                                if (env.CONTAINER_RUNTIME == 'podman') {
+                                    buildCmd += " --format docker"
+                                }
+                                buildCmd += """
+                                    --platform linux/amd64 \
+                                    --build-arg BASE_IMAGE=${env.BASE_IMAGE} \
+                                    -f Dockerfile.multiarch \
+                                    -t ${amd64Tag} \
+                                    .
                                 """
+                                
+                                sh buildCmd
                                 
                                 // Test AMD64 image
                                 echo "Testing AMD64 image..."
                                 sh """
-                                    podman run --rm ${amd64Tag} java -version
-                                    podman run --rm ${amd64Tag} python3 --version
-                                    podman run --rm ${amd64Tag} ansible --version
+                                    ${env.CONTAINER_RUNTIME} run --rm ${amd64Tag} java -version
+                                    ${env.CONTAINER_RUNTIME} run --rm ${amd64Tag} python3 --version
+                                    ${env.CONTAINER_RUNTIME} run --rm ${amd64Tag} ansible --version
                                 """
                                 
                                 if (params.PUSH_TO_REGISTRY) {
                                     echo "Pushing AMD64 image..."
-                                    sh "podman push ${amd64Tag}"
+                                    sh "${env.CONTAINER_RUNTIME} push ${amd64Tag}"
                                 }
                             }
                         }
@@ -192,27 +216,31 @@ pipeline {
                                 echo "Building PPC64LE image"
                                 def ppc64leTag = "${params.DOCKER_REGISTRY}/${params.DOCKER_REPO}:${env.IMAGE_TAG}-ppc64le"
                                 
-                                sh """
-                                    podman build \
-                                        --format docker \
-                                        --platform linux/ppc64le \
-                                        --build-arg BASE_IMAGE=${env.BASE_IMAGE} \
-                                        -f Dockerfile.multiarch \
-                                        -t ${ppc64leTag} \
-                                        .
+                                def buildCmd = "${env.CONTAINER_RUNTIME} build"
+                                if (env.CONTAINER_RUNTIME == 'podman') {
+                                    buildCmd += " --format docker"
+                                }
+                                buildCmd += """
+                                    --platform linux/ppc64le \
+                                    --build-arg BASE_IMAGE=${env.BASE_IMAGE} \
+                                    -f Dockerfile.multiarch \
+                                    -t ${ppc64leTag} \
+                                    .
                                 """
+                                
+                                sh buildCmd
                                 
                                 // Test PPC64LE image
                                 echo "Testing PPC64LE image..."
                                 sh """
-                                    podman run --rm ${ppc64leTag} java -version
-                                    podman run --rm ${ppc64leTag} python3 --version
-                                    podman run --rm ${ppc64leTag} ansible --version
+                                    ${env.CONTAINER_RUNTIME} run --rm ${ppc64leTag} java -version
+                                    ${env.CONTAINER_RUNTIME} run --rm ${ppc64leTag} python3 --version
+                                    ${env.CONTAINER_RUNTIME} run --rm ${ppc64leTag} ansible --version
                                 """
                                 
                                 if (params.PUSH_TO_REGISTRY) {
                                     echo "Pushing PPC64LE image..."
-                                    sh "podman push ${ppc64leTag}"
+                                    sh "${env.CONTAINER_RUNTIME} push ${ppc64leTag}"
                                 }
                             }
                         }
@@ -225,10 +253,10 @@ pipeline {
             steps {
                 script {
                     echo "Verifying built images"
-                    sh '''
+                    sh """
                         echo "=== Local Images ==="
-                        podman images | grep jenkins-inbound-agent || true
-                    '''
+                        ${env.CONTAINER_RUNTIME} images | grep jenkins-inbound-agent || true
+                    """
                     
                     if (params.PUSH_TO_REGISTRY) {
                         def pushMessage = """
