@@ -61,6 +61,13 @@ pipeline {
             defaultValue: 'quay-io-credentials',
             description: 'Jenkins credentials ID for Docker registry (username/password type)'
         )
+        
+        // Certificate credentials
+        string(
+            name: 'PVM_CERT_CREDENTIALS_ID',
+            defaultValue: 'pvm-certificate',
+            description: 'Jenkins credentials ID for pvm.crt file (Secret file type)'
+        )
     }
     
     environment {
@@ -139,6 +146,28 @@ pipeline {
                     '''
                     
                     echo "Build environment ready!"
+                }
+            }
+        }
+        
+        stage('Copy Certificate from Credentials') {
+            steps {
+                script {
+                    dir('images/jenkins-inbound-agent') {
+                        echo "Copying pvm.crt from Jenkins credentials..."
+                        
+                        withCredentials([file(credentialsId: params.PVM_CERT_CREDENTIALS_ID, variable: 'PVM_CERT_FILE')]) {
+                            sh '''
+                                echo "Copying certificate file..."
+                                cp "${PVM_CERT_FILE}" pvm.crt
+                                
+                                echo "Verifying certificate file..."
+                                ls -lh pvm.crt
+                                
+                                echo "Certificate file copied successfully!"
+                            '''
+                        }
+                    }
                 }
             }
         }
