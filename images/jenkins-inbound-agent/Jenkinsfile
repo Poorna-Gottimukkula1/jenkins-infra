@@ -227,6 +227,16 @@ pipeline {
                                 if (params.PUSH_TO_REGISTRY) {
                                     echo "Pushing AMD64 image..."
                                     sh "docker push ${amd64Tag}"
+                                    
+                                    // Also tag and push as latest if requested
+                                    if (params.BUILD_LATEST) {
+                                        def latestTag = "${params.DOCKER_REGISTRY}/${params.DOCKER_REPO}:latest-amd64"
+                                        echo "Tagging and pushing as latest: ${latestTag}"
+                                        sh """
+                                            docker tag ${amd64Tag} ${latestTag}
+                                            docker push ${latestTag}
+                                        """
+                                    }
                                 }
                             }
                         }
@@ -263,6 +273,16 @@ pipeline {
                                 if (params.PUSH_TO_REGISTRY) {
                                     echo "Pushing PPC64LE image..."
                                     sh "docker push ${ppc64leTag}"
+                                    
+                                    // Also tag and push as latest if requested
+                                    if (params.BUILD_LATEST) {
+                                        def latestTag = "${params.DOCKER_REGISTRY}/${params.DOCKER_REPO}:latest-ppc64le"
+                                        echo "Tagging and pushing as latest: ${latestTag}"
+                                        sh """
+                                            docker tag ${ppc64leTag} ${latestTag}
+                                            docker push ${latestTag}
+                                        """
+                                    }
                                 }
                             }
                         }
