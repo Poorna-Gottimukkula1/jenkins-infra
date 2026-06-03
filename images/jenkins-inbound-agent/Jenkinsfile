@@ -54,6 +54,13 @@ pipeline {
             defaultValue: false,
             description: 'Also tag as "latest"'
         )
+        
+        // Registry credentials
+        string(
+            name: 'REGISTRY_CREDENTIALS_ID',
+            defaultValue: 'quay-io-credentials',
+            description: 'Jenkins credentials ID for Docker registry (username/password type)'
+        )
     }
     
     environment {
@@ -136,6 +143,29 @@ pipeline {
             }
         }
         
+        stage('Docker Registry Login') {
+            when {
+                expression { params.PUSH_TO_REGISTRY }
+            }
+            steps {
+                script {
+                    echo "Logging into Docker registry: ${params.DOCKER_REGISTRY}"
+                    
+                    withCredentials([usernamePassword(
+                        credentialsId: params.REGISTRY_CREDENTIALS_ID,
+                        usernameVariable: 'REGISTRY_USERNAME',
+                        passwordVariable: 'REGISTRY_PASSWORD'
+                    )]) {
+                        sh '''
+                            echo "Authenticating to ${DOCKER_REGISTRY}..."
+                            echo "${REGISTRY_PASSWORD}" | docker login ${DOCKER_REGISTRY} -u "${REGISTRY_USERNAME}" --password-stdin
+                            echo "Successfully logged in to ${DOCKER_REGISTRY}"
+                        '''
+                    }
+                }
+            }
+        }
+        
         stage('Build Individual Architecture Images') {
             parallel {
                 stage('Build AMD64') {
@@ -160,9 +190,9 @@ pipeline {
                                 // Test AMD64 image
                                 echo "Testing AMD64 image..."
                                 sh """
-                                    docker run --rm ${amd64Tag} java -version
-                                    docker run --rm ${amd64Tag} python3 --version
-                                    docker run --rm ${amd64Tag} ansible --version
+                                    docker run --rm --entrypoint /bin/bash ${ppc64leTag} -c "java -version"
+                                    docker run --rm --entrypoint /bin/bash ${ppc64leTag} -c "python3 --version"
+                                    docker run --rm --entrypoint /bin/bash ${ppc64leTag} -c "ansible --version"
                                 """
                                 
                                 if (params.PUSH_TO_REGISTRY) {
