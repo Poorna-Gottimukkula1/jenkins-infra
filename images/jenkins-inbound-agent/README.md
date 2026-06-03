@@ -22,9 +22,13 @@ The build system creates customized Jenkins inbound agent images based on the of
 
 ### Prerequisites
 
-1. **Docker with Buildx support** (Docker 19.03+)
+1. **Container Runtime**:
+   - **Docker with Buildx support** (Docker 19.03+), OR
+   - **Podman** (version 3.0+)
 2. **Make** (optional, for local testing)
 3. **Access to Docker registry** (for pushing images)
+
+> **Note**: The Makefile automatically detects whether you're using Docker or Podman and adjusts commands accordingly.
 
 ## Local Development & Testing
 
@@ -77,6 +81,37 @@ docker buildx build \
   -t quay.io/pgottimu/jenkins-inbound-agent:3355.v388858a_47b_33-21-jdk17 \
   --push \
   .
+```
+
+### Using Podman (Local Testing)
+
+```bash
+# Build AMD64 image
+podman build \
+  --platform linux/amd64 \
+  --build-arg BASE_IMAGE=jenkins/inbound-agent:3355.v388858a_47b_33-21-jdk17 \
+  -f Dockerfile.multiarch \
+  -t quay.io/pgottimu/jenkins-inbound-agent:3355.v388858a_47b_33-21-jdk17-amd64 \
+  .
+
+# Build PPC64LE image
+podman build \
+  --platform linux/ppc64le \
+  --build-arg BASE_IMAGE=jenkins/inbound-agent:3355.v388858a_47b_33-21-jdk17 \
+  -f Dockerfile.multiarch \
+  -t quay.io/pgottimu/jenkins-inbound-agent:3355.v388858a_47b_33-21-jdk17-ppc64le \
+  .
+
+# Push images
+podman push quay.io/pgottimu/jenkins-inbound-agent:3355.v388858a_47b_33-21-jdk17-amd64
+podman push quay.io/pgottimu/jenkins-inbound-agent:3355.v388858a_47b_33-21-jdk17-ppc64le
+
+# Create and push manifest
+podman manifest create quay.io/pgottimu/jenkins-inbound-agent:3355.v388858a_47b_33-21-jdk17 \
+  quay.io/pgottimu/jenkins-inbound-agent:3355.v388858a_47b_33-21-jdk17-amd64 \
+  quay.io/pgottimu/jenkins-inbound-agent:3355.v388858a_47b_33-21-jdk17-ppc64le
+
+podman manifest push quay.io/pgottimu/jenkins-inbound-agent:3355.v388858a_47b_33-21-jdk17
 ```
 
 ## Jenkins Pipeline (CI/CD)
@@ -295,6 +330,31 @@ docker login quay.io
 ```bash
 # Solution: Ensure you have push access to the repository
 # Contact repository administrator or use your own repository
+```
+
+### Podman-Specific Issues
+
+**Problem**: `Error: unrecognized command 'podman buildx use'`
+```bash
+# Solution: This is expected - Podman doesn't use buildx
+# The Makefile will automatically use Podman's native multi-arch support
+# Just run: make build
+```
+
+**Problem**: Podman build fails with platform error
+```bash
+# Solution: Ensure QEMU is installed for cross-platform builds
+sudo dnf install qemu-user-static  # For RHEL/CentOS/Fedora
+# or
+sudo apt-get install qemu-user-static  # For Debian/Ubuntu
+```
+
+**Problem**: Manifest creation fails
+```bash
+# Solution: Ensure images are pushed before creating manifest
+podman push <image-amd64>
+podman push <image-ppc64le>
+# Then create manifest
 ```
 
 ### Jenkins Pipeline Issues
