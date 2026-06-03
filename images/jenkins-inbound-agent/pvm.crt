@@ -1,0 +1,5 @@
+-----BEGIN CERTIFICATE-----
+# Placeholder certificate file
+# Replace this with your actual PVM certificate
+# This is a dummy certificate to allow the build to proceed
+-----END CERTIFICATE-----

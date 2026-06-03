@@ -1,0 +1,125 @@
+# Multi-architecture Dockerfile for jenkins-inbound-agent
+# Supports: amd64, ppc64le
+ARG BASE_IMAGE=jenkins/inbound-agent:3355.v388858a_47b_33-21-jdk17
+ARG TARGETARCH
+FROM ${BASE_IMAGE}
+
+USER root
+
+# Create SSL certs directory
+RUN mkdir -p /etc/ssl/certs/ && chmod 755 /etc/ssl/certs/
+
+# Update apt sources to use HTTPS
+RUN sed -i 's|http://deb.debian.org|https://deb.debian.org|g' /etc/apt/sources.list.d/debian.sources
+
+# Install common packages
+RUN apt-get update && apt-get install -y \
+        curl \
+        gnupg2 \
+        python3 \
+        python3-pip \
+        python3-venv \
+        make \
+        unzip \
+        jq \
+        pkg-config \
+        wget \
+        git \
+        sudo \
+        rsync \
+        dnsutils \
+        iproute2 \
+        python3-openstackclient \
+    && rm -rf /var/lib/apt/lists/*
+
+# Architecture-specific browser installations
+# amd64: Google Chrome (official binary)
+# ppc64le: Chromium (open-source, available for PowerPC)
+ARG TARGETARCH
+RUN apt-get update && \
+    if [ "$TARGETARCH" = "amd64" ]; then \
+        wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
+        apt-get install -y ./google-chrome-stable_current_amd64.deb && \
+        rm google-chrome-stable_current_amd64.deb; \
+    elif [ "$TARGETARCH" = "ppc64le" ]; then \
+        apt-get install -y rpm chromium-browser; \
+    fi && \
+    rm -rf /var/lib/apt/lists/*
+
+# Install IBM Cloud CLI (architecture-specific)
+ARG TARGETARCH
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
+        wget https://download.clis.cloud.ibm.com/ibm-cloud-cli/2.43.1/IBM_Cloud_CLI_2.43.1_amd64.tar.gz && \
+        tar -xvzf "./IBM_Cloud_CLI_2.43.1_amd64.tar.gz" && \
+        ./Bluemix_CLI/install && \
+        rm -rf "./IBM_Cloud_CLI_2.43.1_amd64.tar.gz" "./Bluemix_CLI/" && \
+        ibmcloud update -f && \
+        ibmcloud plugin install cloud-object-storage -f && \
+        ibmcloud plugin install container-service -f && \
+        ibmcloud plugin install power-iaas -f; \
+    elif [ "$TARGETARCH" = "ppc64le" ]; then \
+        wget https://download.clis.cloud.ibm.com/ibm-cloud-cli/2.43.1/IBM_Cloud_CLI_2.43.1_ppc64le.tar.gz && \
+        tar -xvzf "./IBM_Cloud_CLI_2.43.1_ppc64le.tar.gz" && \
+        ./Bluemix_CLI/install && \
+        rm -rf "./IBM_Cloud_CLI_2.43.1_ppc64le.tar.gz" "./Bluemix_CLI/" && \
+        ibmcloud update -f && \
+        ibmcloud plugin install cloud-object-storage -f && \
+        ibmcloud plugin install power-iaas -f; \
+    fi
+
+# Install OpenShift CLI (architecture-specific)
+ARG TARGETARCH
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
+        wget --quiet --no-check-certificate https://mirror.openshift.com/pub/openshift-v4/amd64/clients/ocp/latest/openshift-client-linux.tar.gz -O /tmp/oc.tar.gz; \
+    elif [ "$TARGETARCH" = "ppc64le" ]; then \
+        wget --quiet --no-check-certificate https://mirror.openshift.com/pub/openshift-v4/ppc64le/clients/ocp/latest/openshift-client-linux.tar.gz -O /tmp/oc.tar.gz; \
+    fi && \
+    tar zvxf /tmp/oc.tar.gz && \
+    chmod +x oc && \
+    mv oc kubectl /usr/local/bin/ && \
+    rm -rf /tmp/oc.tar.gz
+
+# Setup Python virtual environment
+RUN python3 -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+RUN pip3 install --upgrade pip && pip3 install ansible && pip3 install yq
+
+# Setup Go path
+ENV PATH $GOPATH/bin:/usr/local/go/bin:$PATH
+
+# Generate SSH key
+RUN ssh-keygen -t rsa -N "" -f ~/.ssh/id_rsa
+
+# Install nerdctl (architecture-specific)
+ENV VERSION="2.3.1"
+ARG TARGETARCH
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
+        wget https://github.com/containerd/nerdctl/releases/download/v$VERSION/nerdctl-$VERSION-linux-amd64.tar.gz && \
+        tar zxvf nerdctl-$VERSION-linux-amd64.tar.gz -C /usr/local/bin/ && \
+        rm -f nerdctl-$VERSION-linux-amd64.tar.gz; \
+    elif [ "$TARGETARCH" = "ppc64le" ]; then \
+        wget https://github.com/containerd/nerdctl/releases/download/v$VERSION/nerdctl-$VERSION-linux-ppc64le.tar.gz && \
+        tar zxvf nerdctl-$VERSION-linux-ppc64le.tar.gz -C /usr/local/bin/ && \
+        rm -f nerdctl-$VERSION-linux-ppc64le.tar.gz; \
+    fi
+
+# Copy certificate if it exists, otherwise create a placeholder
+COPY pvm.crt /etc/ssl/certs/pvm.crt
+RUN /usr/sbin/update-ca-certificates
+
+# Configure wget
+RUN echo "check_certificate = off" >> ~/.wgetrc
+
+# Modify jenkins-agent script for MTU
+RUN sed -i '2 a ip link set dev eth0 mtu 1420' /usr/local/bin/jenkins-agent
+
+# Set environment variable for browser path (for automation tools)
+# amd64: google-chrome, ppc64le: chromium-browser
+ARG TARGETARCH
+RUN if [ "$TARGETARCH" = "amd64" ]; then \
+        echo 'export CHROME_BIN=/usr/bin/google-chrome' >> /etc/profile.d/chrome.sh; \
+    elif [ "$TARGETARCH" = "ppc64le" ]; then \
+        echo 'export CHROME_BIN=/usr/bin/chromium-browser' >> /etc/profile.d/chrome.sh; \
+    fi
+
+# Made with Bob
