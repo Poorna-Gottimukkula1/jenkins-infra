@@ -4,20 +4,20 @@ pipeline {
     parameters {
         // Source image tag
         string(
-            name: 'BASE_IMAGE_TAG', 
-            defaultValue: '3355.v388858a_47b_33-21-jdk17', 
+            name: 'BASE_IMAGE_TAG',
+            defaultValue: '3355.v388858a_47b_33-21-jdk17',
             description: 'Base image tag from jenkins/inbound-agent (e.g., 3355.v388858a_47b_33-21-jdk17, latest-jdk17)'
         )
         
         // Destination image configuration
         string(
-            name: 'DOCKER_REGISTRY', 
-            defaultValue: 'quay.io', 
+            name: 'DOCKER_REGISTRY',
+            defaultValue: 'quay.io',
             description: 'Docker registry URL (e.g., quay.io, docker.io)'
         )
         string(
-            name: 'DOCKER_REPO', 
-            defaultValue: 'pgottimu/jenkins-inbound-agent', 
+            name: 'DOCKER_REPO',
+            defaultValue: 'pgottimu/jenkins-inbound-agent',
             description: 'Docker repository name (e.g., pgottimu/jenkins-inbound-agent)'
         )
         choice(
@@ -26,20 +26,32 @@ pipeline {
             description: 'Tag strategy: same-as-base (use base tag), date-tag (YYYYMMDD-HHMM), custom (specify below)'
         )
         string(
-            name: 'CUSTOM_TAG', 
-            defaultValue: '', 
+            name: 'CUSTOM_TAG',
+            defaultValue: '',
             description: 'Custom tag (only used if TAG_STRATEGY is "custom")'
+        )
+        
+        // Architecture options
+        booleanParam(
+            name: 'BUILD_AMD64',
+            defaultValue: true,
+            description: 'Build AMD64 architecture'
+        )
+        booleanParam(
+            name: 'BUILD_PPC64LE',
+            defaultValue: false,
+            description: 'Build PPC64LE architecture (requires QEMU on AMD64 hosts)'
         )
         
         // Build options
         booleanParam(
-            name: 'PUSH_TO_REGISTRY', 
-            defaultValue: false, 
+            name: 'PUSH_TO_REGISTRY',
+            defaultValue: false,
             description: 'Push images to registry'
         )
         booleanParam(
-            name: 'BUILD_LATEST', 
-            defaultValue: false, 
+            name: 'BUILD_LATEST',
+            defaultValue: false,
             description: 'Also tag as "latest"'
         )
     }
@@ -76,7 +88,15 @@ pipeline {
                     
                     env.IMAGE_TAG = imageTag
                     env.FULL_IMAGE_NAME = "${params.DOCKER_REGISTRY}/${params.DOCKER_REPO}:${imageTag}"
+                    env.FULL_IMAGE_NAME_AMD64 = "${params.DOCKER_REGISTRY}/${params.DOCKER_REPO}:${imageTag}-amd64"
+                    env.FULL_IMAGE_NAME_PPC64LE = "${params.DOCKER_REGISTRY}/${params.DOCKER_REPO}:${imageTag}-ppc64le"
                     env.FULL_IMAGE_NAME_LATEST = "${params.DOCKER_REGISTRY}/${params.DOCKER_REPO}:latest"
+                    
+                    // Determine architectures to build
+                    def archList = []
+                    if (params.BUILD_AMD64) archList.add('AMD64')
+                    if (params.BUILD_PPC64LE) archList.add('PPC64LE')
+                    env.ARCHITECTURES = archList.join(', ')
                     
                     echo """
                     ========================================
@@ -84,58 +104,41 @@ pipeline {
                     ========================================
                     Base Image:        ${env.BASE_IMAGE}
                     Destination:       ${env.FULL_IMAGE_NAME}
+                    Architectures:     ${env.ARCHITECTURES}
                     Tag Strategy:      ${params.TAG_STRATEGY}
                     Push to Registry:  ${params.PUSH_TO_REGISTRY}
                     Build Latest:      ${params.BUILD_LATEST}
                     ========================================
                     """
-                }
-            }
-        }
-        
-        stage('Setup Docker Buildx') {
-            steps {
-                script {
-                    echo "Setting up Docker Buildx for multi-architecture builds"
-                    sh '''
-                        # Create buildx builder if it doesn't exist
-                        docker buildx create --name multiarch-builder --use 2>/dev/null || docker buildx use multiarch-builder
-                        docker buildx inspect --bootstrap
-                    '''
-                }
-            }
-        }
-        
-        stage('Build Multi-Arch Image') {
-            steps {
-                script {
-                    dir('images/jenkins-inbound-agent') {
-                        echo "Building multi-architecture image for amd64 and ppc64le"
-                        
-                        def buildCmd = """
-                            docker buildx build \
-                                --platform linux/amd64,linux/ppc64le \
-                                --build-arg BASE_IMAGE=${env.BASE_IMAGE} \
-                                -f Dockerfile.multiarch \
-                                -t ${env.FULL_IMAGE_NAME}
-                        """
-                        
-                        if (params.BUILD_LATEST) {
-                            buildCmd += " -t ${env.FULL_IMAGE_NAME_LATEST}"
-                        }
-                        
-                        if (params.PUSH_TO_REGISTRY) {
-                            buildCmd += " --push"
-                            echo "Building and pushing to registry"
-                        } else {
-                            buildCmd += " --load"
-                            echo "Building locally (not pushing to registry)"
-                        }
-                        
-                        buildCmd += " ."
-                        
-                        sh buildCmd
+                    
+                    if (!params.BUILD_AMD64 && !params.BUILD_PPC64LE) {
+                        error("At least one architecture must be selected!")
                     }
+                }
+            }
+        }
+        
+        stage('Setup Build Environment') {
+            steps {
+                script {
+                    echo "Checking build environment..."
+                    sh '''
+                        echo "=== Container Runtime ==="
+                        podman --version || docker --version
+                        
+                        echo "=== System Architecture ==="
+                        uname -m
+                        
+                        echo "=== Available Platforms ==="
+                        if command -v podman &> /dev/null; then
+                            echo "Using Podman"
+                            podman info --format '{{.Host.Arch}}'
+                        else
+                            echo "Using Docker"
+                            docker version --format '{{.Server.Arch}}'
+                        fi
+                    '''
+                    echo "Build environment ready!"
                 }
             }
         }
@@ -143,6 +146,9 @@ pipeline {
         stage('Build Individual Architecture Images') {
             parallel {
                 stage('Build AMD64') {
+                    when {
+                        expression { params.BUILD_AMD64 }
+                    }
                     steps {
                         script {
                             dir('images/jenkins-inbound-agent') {
@@ -150,17 +156,26 @@ pipeline {
                                 def amd64Tag = "${params.DOCKER_REGISTRY}/${params.DOCKER_REPO}:${env.IMAGE_TAG}-amd64"
                                 
                                 sh """
-                                    docker buildx build \
+                                    podman build \
+                                        --format docker \
                                         --platform linux/amd64 \
                                         --build-arg BASE_IMAGE=${env.BASE_IMAGE} \
                                         -f Dockerfile.multiarch \
                                         -t ${amd64Tag} \
-                                        --load \
                                         .
                                 """
                                 
+                                // Test AMD64 image
+                                echo "Testing AMD64 image..."
+                                sh """
+                                    podman run --rm ${amd64Tag} java -version
+                                    podman run --rm ${amd64Tag} python3 --version
+                                    podman run --rm ${amd64Tag} ansible --version
+                                """
+                                
                                 if (params.PUSH_TO_REGISTRY) {
-                                    sh "docker push ${amd64Tag}"
+                                    echo "Pushing AMD64 image..."
+                                    sh "podman push ${amd64Tag}"
                                 }
                             }
                         }
@@ -168,6 +183,9 @@ pipeline {
                 }
                 
                 stage('Build PPC64LE') {
+                    when {
+                        expression { params.BUILD_PPC64LE }
+                    }
                     steps {
                         script {
                             dir('images/jenkins-inbound-agent') {
@@ -175,17 +193,26 @@ pipeline {
                                 def ppc64leTag = "${params.DOCKER_REGISTRY}/${params.DOCKER_REPO}:${env.IMAGE_TAG}-ppc64le"
                                 
                                 sh """
-                                    docker buildx build \
+                                    podman build \
+                                        --format docker \
                                         --platform linux/ppc64le \
                                         --build-arg BASE_IMAGE=${env.BASE_IMAGE} \
                                         -f Dockerfile.multiarch \
                                         -t ${ppc64leTag} \
-                                        --load \
                                         .
                                 """
                                 
+                                // Test PPC64LE image
+                                echo "Testing PPC64LE image..."
+                                sh """
+                                    podman run --rm ${ppc64leTag} java -version
+                                    podman run --rm ${ppc64leTag} python3 --version
+                                    podman run --rm ${ppc64leTag} ansible --version
+                                """
+                                
                                 if (params.PUSH_TO_REGISTRY) {
-                                    sh "docker push ${ppc64leTag}"
+                                    echo "Pushing PPC64LE image..."
+                                    sh "podman push ${ppc64leTag}"
                                 }
                             }
                         }
@@ -200,34 +227,38 @@ pipeline {
                     echo "Verifying built images"
                     sh '''
                         echo "=== Local Images ==="
-                        docker images | grep jenkins-inbound-agent || true
-                        
-                        echo "=== Buildx Builders ==="
-                        docker buildx ls
+                        podman images | grep jenkins-inbound-agent || true
                     '''
                     
                     if (params.PUSH_TO_REGISTRY) {
-                        echo """
+                        def pushMessage = """
                         ========================================
                         Images pushed successfully!
                         ========================================
-                        Multi-arch:  ${env.FULL_IMAGE_NAME}
-                        AMD64:       ${params.DOCKER_REGISTRY}/${params.DOCKER_REPO}:${env.IMAGE_TAG}-amd64
-                        PPC64LE:     ${params.DOCKER_REGISTRY}/${params.DOCKER_REPO}:${env.IMAGE_TAG}-ppc64le
                         """
                         
-                        if (params.BUILD_LATEST) {
-                            echo "Latest:      ${env.FULL_IMAGE_NAME_LATEST}"
+                        if (params.BUILD_AMD64) {
+                            pushMessage += "AMD64:       ${env.FULL_IMAGE_NAME_AMD64}\n"
+                        }
+                        if (params.BUILD_PPC64LE) {
+                            pushMessage += "PPC64LE:     ${env.FULL_IMAGE_NAME_PPC64LE}\n"
                         }
                         
-                        echo """
+                        pushMessage += """
                         ========================================
                         Pull commands:
-                        docker pull ${env.FULL_IMAGE_NAME}
-                        docker pull ${params.DOCKER_REGISTRY}/${params.DOCKER_REPO}:${env.IMAGE_TAG}-amd64
-                        docker pull ${params.DOCKER_REGISTRY}/${params.DOCKER_REPO}:${env.IMAGE_TAG}-ppc64le
-                        ========================================
                         """
+                        
+                        if (params.BUILD_AMD64) {
+                            pushMessage += "podman pull ${env.FULL_IMAGE_NAME_AMD64}\n"
+                        }
+                        if (params.BUILD_PPC64LE) {
+                            pushMessage += "podman pull ${env.FULL_IMAGE_NAME_PPC64LE}\n"
+                        }
+                        
+                        pushMessage += "========================================"
+                        
+                        echo pushMessage
                     }
                 }
             }
@@ -237,16 +268,29 @@ pipeline {
     post {
         success {
             script {
-                echo """
+                def successMessage = """
                 ========================================
                 BUILD SUCCESSFUL!
                 ========================================
                 Base Image:    ${env.BASE_IMAGE}
-                Built Image:   ${env.FULL_IMAGE_NAME}
-                Architectures: amd64, ppc64le
+                Architectures: ${env.ARCHITECTURES}
                 Pushed:        ${params.PUSH_TO_REGISTRY}
-                ========================================
                 """
+                
+                if (params.BUILD_AMD64) {
+                    successMessage += "AMD64 Image:   ${env.FULL_IMAGE_NAME_AMD64}\n"
+                }
+                if (params.BUILD_PPC64LE) {
+                    successMessage += "PPC64LE Image: ${env.FULL_IMAGE_NAME_PPC64LE}\n"
+                }
+                
+                if (!params.PUSH_TO_REGISTRY) {
+                    successMessage += "\nNote: Images built locally only (not pushed to registry)\n"
+                }
+                
+                successMessage += "========================================"
+                
+                echo successMessage
             }
         }
         failure {
@@ -255,8 +299,6 @@ pipeline {
         cleanup {
             script {
                 echo "Cleaning up..."
-                // Optional: Remove buildx builder
-                // sh 'docker buildx rm multiarch-builder || true'
             }
         }
     }

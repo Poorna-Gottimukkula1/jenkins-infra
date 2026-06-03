@@ -25,42 +25,10 @@ The build system creates customized Jenkins inbound agent images based on the of
 1. **Container Runtime**:
    - **Docker with Buildx support** (Docker 19.03+), OR
    - **Podman** (version 3.0+)
-2. **QEMU** (required for cross-platform builds on AMD64 hosts)
-3. **Make** (optional, for local testing)
-4. **Access to Docker registry** (for pushing images)
+2. **Make** (optional, for local testing)
+3. **Access to Docker registry** (for pushing images)
 
 > **Note**: The Makefile automatically detects whether you're using Docker or Podman and adjusts commands accordingly.
-
-### ⚠️ Important: QEMU Setup for Cross-Platform Builds
-
-If you're building on an **AMD64 system** and want to build **PPC64LE** images, you MUST set up QEMU emulation first.
-
-**Quick Setup (Recommended):**
-```bash
-# Run the setup script
-chmod +x setup-qemu.sh
-./setup-qemu.sh
-```
-
-**Manual Setup:**
-```bash
-# Method 1: Using container (works with both Docker and Podman)
-sudo podman run --rm --privileged multiarch/qemu-user-static --reset -p yes
-
-# Method 2: Install package
-sudo dnf install qemu-user-static  # RHEL/CentOS/Fedora
-# or
-sudo apt-get install qemu-user-static  # Debian/Ubuntu
-
-# Verify it works
-podman run --rm --platform linux/ppc64le alpine uname -m
-# Should output: ppc64le
-```
-
-**Without QEMU setup, you will get this error:**
-```
-exec container process `/bin/sh`: Exec format error
-```
 
 ## Local Development & Testing
 
