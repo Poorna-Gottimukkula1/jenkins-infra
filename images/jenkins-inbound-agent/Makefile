@@ -103,6 +103,7 @@ build-amd64: setup ## Build AMD64 image only
 	@echo "Building AMD64 image..."
 ifeq ($(USE_PODMAN),true)
 	$(CONTAINER_RUNTIME) build \
+		--format docker \
 		--platform linux/amd64 \
 		--build-arg BASE_IMAGE=$(BASE_IMAGE) \
 		-f $(DOCKERFILE) \
@@ -124,6 +125,7 @@ build-ppc64le: setup ## Build PPC64LE image only
 	@echo "Building PPC64LE image..."
 ifeq ($(USE_PODMAN),true)
 	$(CONTAINER_RUNTIME) build \
+		--format docker \
 		--platform linux/ppc64le \
 		--build-arg BASE_IMAGE=$(BASE_IMAGE) \
 		-f $(DOCKERFILE) \

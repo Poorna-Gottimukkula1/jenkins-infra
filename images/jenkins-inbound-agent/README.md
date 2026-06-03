@@ -86,16 +86,18 @@ docker buildx build \
 ### Using Podman (Local Testing)
 
 ```bash
-# Build AMD64 image
+# Build AMD64 image (using Docker format to avoid SHELL warnings)
 podman build \
+  --format docker \
   --platform linux/amd64 \
   --build-arg BASE_IMAGE=jenkins/inbound-agent:3355.v388858a_47b_33-21-jdk17 \
   -f Dockerfile.multiarch \
   -t quay.io/pgottimu/jenkins-inbound-agent:3355.v388858a_47b_33-21-jdk17-amd64 \
   .
 
-# Build PPC64LE image
+# Build PPC64LE image (using Docker format to avoid SHELL warnings)
 podman build \
+  --format docker \
   --platform linux/ppc64le \
   --build-arg BASE_IMAGE=jenkins/inbound-agent:3355.v388858a_47b_33-21-jdk17 \
   -f Dockerfile.multiarch \
