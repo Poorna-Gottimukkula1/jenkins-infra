@@ -150,6 +150,7 @@ pipeline {
                                 
                                 sh """
                                     DOCKER_BUILDKIT=0 docker build \
+                                        --no-cache \
                                         --build-arg BASE_IMAGE=${env.BASE_IMAGE} \
                                         -f Dockerfile \
                                         -t ${amd64Tag} \
@@ -185,6 +186,7 @@ pipeline {
                                 
                                 sh """
                                     DOCKER_BUILDKIT=0 docker build \
+                                        --no-cache \
                                         --build-arg BASE_IMAGE=${env.BASE_IMAGE} \
                                         -f Dockerfile.ppc64le \
                                         -t ${ppc64leTag} \
