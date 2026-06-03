@@ -57,7 +57,7 @@ pipeline {
     }
     
     environment {
-        DOCKER_BUILDKIT = '1'
+        DOCKER_BUILDKIT = '0'
         BUILDX_NO_DEFAULT_ATTESTATIONS = '1'
         BASE_IMAGE_REPO = 'jenkins/inbound-agent'
     }
@@ -149,7 +149,7 @@ pipeline {
                                 def amd64Tag = "${params.DOCKER_REGISTRY}/${params.DOCKER_REPO}:${env.IMAGE_TAG}-amd64"
                                 
                                 sh """
-                                    DOCKER_BUILDKIT=0 docker build \
+                                    docker build \
                                         --no-cache \
                                         --build-arg BASE_IMAGE=${env.BASE_IMAGE} \
                                         -f Dockerfile \
@@ -185,7 +185,7 @@ pipeline {
                                 def ppc64leTag = "${params.DOCKER_REGISTRY}/${params.DOCKER_REPO}:${env.IMAGE_TAG}-ppc64le"
                                 
                                 sh """
-                                    DOCKER_BUILDKIT=0 docker build \
+                                    docker build \
                                         --no-cache \
                                         --build-arg BASE_IMAGE=${env.BASE_IMAGE} \
                                         -f Dockerfile.ppc64le \
@@ -196,9 +196,9 @@ pipeline {
                                 // Test PPC64LE image
                                 echo "Testing PPC64LE image..."
                                 sh """
-                                    docker run --rm ${ppc64leTag} java -version
-                                    docker run --rm ${ppc64leTag} python3 --version
-                                    docker run --rm ${ppc64leTag} ansible --version
+                                    docker run --rm --entrypoint /bin/bash ${ppc64leTag} -c "java -version"
+                                    docker run --rm --entrypoint /bin/bash ${ppc64leTag} -c "python3 --version"
+                                    docker run --rm --entrypoint /bin/bash ${ppc64leTag} -c "ansible --version"
                                 """
                                 
                                 if (params.PUSH_TO_REGISTRY) {
