@@ -41,7 +41,7 @@ RUN apt-get update && \
         apt-get install -y ./google-chrome-stable_current_amd64.deb && \
         rm google-chrome-stable_current_amd64.deb; \
     elif [ "$TARGETARCH" = "ppc64le" ]; then \
-        apt-get install -y rpm chromium-browser; \
+        echo "no chromium" \
     fi && \
     rm -rf /var/lib/apt/lists/*
 
