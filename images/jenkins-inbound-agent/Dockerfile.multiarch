@@ -32,15 +32,15 @@ RUN apt-get update && apt-get install -y \
     && rm -rf /var/lib/apt/lists/*
 
 # Architecture-specific browser installations
-# x86_64: Google Chrome (official binary)
+# amd64: Google Chrome (official binary)
 # ppc64le: Chromium (open-source, available for PowerPC)
+ARG TARGETARCH
 RUN apt-get update && \
-    ARCH=$(uname -m) && \
-    if [ "$ARCH" = "x86_64" ]; then \
+    if [ "$TARGETARCH" = "amd64" ]; then \
         wget https://dl.google.com/linux/direct/google-chrome-stable_current_amd64.deb && \
         apt-get install -y ./google-chrome-stable_current_amd64.deb && \
         rm google-chrome-stable_current_amd64.deb; \
-    elif [ "$ARCH" = "ppc64le" ]; then \
+    elif [ "$TARGETARCH" = "ppc64le" ]; then \
         apt-get install -y rpm chromium-browser; \
     fi && \
     rm -rf /var/lib/apt/lists/*
