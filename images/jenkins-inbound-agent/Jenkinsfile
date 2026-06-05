@@ -46,6 +46,11 @@ pipeline {
         
         // Build options
         booleanParam(
+            name: 'USE_MULTIARCH_BUILD',
+            defaultValue: false,
+            description: 'Use single multi-arch build (Dockerfile.multiarch) - builds all selected architectures in one stage'
+        )
+        booleanParam(
             name: 'PUSH_TO_REGISTRY',
             defaultValue: false,
             description: 'Push images to registry'
@@ -121,6 +126,7 @@ pipeline {
                     Destination:       ${env.FULL_IMAGE_NAME}
                     Architectures:     ${env.ARCHITECTURES}
                     Tag Strategy:      ${params.TAG_STRATEGY}
+                    Multi-Arch Build:  ${params.USE_MULTIARCH_BUILD}
                     Push to Registry:  ${params.PUSH_TO_REGISTRY}
                     Build Latest:      ${params.BUILD_LATEST}
                     ========================================
@@ -206,7 +212,73 @@ pipeline {
             }
         }
         
+        stage('Build Multi-Architecture Image (Single Stage)') {
+            when {
+                expression { params.USE_MULTIARCH_BUILD }
+            }
+            steps {
+                script {
+                    dir('images/jenkins-inbound-agent') {
+                        echo "Building multi-architecture image using Dockerfile.multiarch"
+                        
+                        // Determine platforms to build
+                        def platforms = []
+                        if (params.BUILD_AMD64) platforms.add('linux/amd64')
+                        if (params.BUILD_PPC64LE) platforms.add('linux/ppc64le')
+                        def platformList = platforms.join(',')
+                        
+                        def mainTag = "${params.DOCKER_REGISTRY}/${params.DOCKER_REPO}:${env.IMAGE_TAG}"
+                        def pushFlag = params.PUSH_TO_REGISTRY ? "--push" : "--load"
+                        
+                        echo "Building for platforms: ${platformList}"
+                        
+                        sh """
+                            docker buildx build \
+                                --platform ${platformList} \
+                                --no-cache \
+                                --build-arg BASE_IMAGE=${env.BASE_IMAGE} \
+                                -f Dockerfile.multiarch \
+                                -t ${mainTag} \
+                                ${pushFlag} \
+                                .
+                        """
+                        
+                        if (params.PUSH_TO_REGISTRY) {
+                            echo "Multi-arch image pushed to registry"
+                            sh """
+                                echo "Inspecting multi-arch manifest:"
+                                docker buildx imagetools inspect ${mainTag}
+                            """
+                            
+                            // Build and push latest tag if requested
+                            if (params.BUILD_LATEST) {
+                                def latestTag = "${params.DOCKER_REGISTRY}/${params.DOCKER_REPO}:latest"
+                                echo "Building and pushing latest multi-arch tag: ${latestTag}"
+                                sh """
+                                    docker buildx build \
+                                        --platform ${platformList} \
+                                        --build-arg BASE_IMAGE=${env.BASE_IMAGE} \
+                                        -f Dockerfile.multiarch \
+                                        -t ${latestTag} \
+                                        --push \
+                                        .
+                                    
+                                    echo "Inspecting latest multi-arch manifest:"
+                                    docker buildx imagetools inspect ${latestTag}
+                                """
+                            }
+                        } else {
+                            echo "Multi-arch image built locally (note: only native architecture can be loaded locally)"
+                        }
+                    }
+                }
+            }
+        }
+        
         stage('Build Individual Architecture Images') {
+            when {
+                expression { !params.USE_MULTIARCH_BUILD }
+            }
             parallel {
                 stage('Build AMD64') {
                     when {
@@ -262,7 +334,10 @@ pipeline {
                 
                 stage('Build PPC64LE') {
                     when {
-                        expression { params.BUILD_PPC64LE }
+                        allOf {
+                            expression { params.BUILD_PPC64LE }
+                            expression { !params.USE_MULTIARCH_BUILD }
+                        }
                     }
                     steps {
                         script {
@@ -316,6 +391,7 @@ pipeline {
         stage('Create Multi-Architecture Manifest') {
             when {
                 allOf {
+                    expression { !params.USE_MULTIARCH_BUILD }
                     expression { params.PUSH_TO_REGISTRY }
                     expression { params.BUILD_AMD64 && params.BUILD_PPC64LE }
                 }
@@ -379,14 +455,23 @@ pipeline {
                         ========================================
                         """
                         
-                        if (params.BUILD_AMD64) {
-                            pushMessage += "AMD64:       ${env.FULL_IMAGE_NAME_AMD64}\n"
-                        }
-                        if (params.BUILD_PPC64LE) {
-                            pushMessage += "PPC64LE:     ${env.FULL_IMAGE_NAME_PPC64LE}\n"
-                        }
-                        if (params.BUILD_AMD64 && params.BUILD_PPC64LE) {
+                        if (params.USE_MULTIARCH_BUILD) {
                             pushMessage += "Multi-Arch:  ${env.FULL_IMAGE_NAME}\n"
+                            pushMessage += "Platforms:   "
+                            def platforms = []
+                            if (params.BUILD_AMD64) platforms.add('linux/amd64')
+                            if (params.BUILD_PPC64LE) platforms.add('linux/ppc64le')
+                            pushMessage += platforms.join(', ') + "\n"
+                        } else {
+                            if (params.BUILD_AMD64) {
+                                pushMessage += "AMD64:       ${env.FULL_IMAGE_NAME_AMD64}\n"
+                            }
+                            if (params.BUILD_PPC64LE) {
+                                pushMessage += "PPC64LE:     ${env.FULL_IMAGE_NAME_PPC64LE}\n"
+                            }
+                            if (params.BUILD_AMD64 && params.BUILD_PPC64LE) {
+                                pushMessage += "Multi-Arch:  ${env.FULL_IMAGE_NAME}\n"
+                            }
                         }
                         
                         pushMessage += """
@@ -394,17 +479,25 @@ pipeline {
                         Pull commands:
                         """
                         
-                        if (params.BUILD_AMD64) {
-                            pushMessage += "podman pull ${env.FULL_IMAGE_NAME_AMD64}\n"
-                        }
-                        if (params.BUILD_PPC64LE) {
-                            pushMessage += "podman pull ${env.FULL_IMAGE_NAME_PPC64LE}\n"
-                        }
-                        if (params.BUILD_AMD64 && params.BUILD_PPC64LE) {
-                            pushMessage += "\nMulti-arch (auto-selects architecture):\n"
+                        if (params.USE_MULTIARCH_BUILD) {
+                            pushMessage += "Multi-arch (auto-selects architecture):\n"
                             pushMessage += "podman pull ${env.FULL_IMAGE_NAME}\n"
                             if (params.BUILD_LATEST) {
                                 pushMessage += "podman pull ${env.FULL_IMAGE_NAME_LATEST}\n"
+                            }
+                        } else {
+                            if (params.BUILD_AMD64) {
+                                pushMessage += "podman pull ${env.FULL_IMAGE_NAME_AMD64}\n"
+                            }
+                            if (params.BUILD_PPC64LE) {
+                                pushMessage += "podman pull ${env.FULL_IMAGE_NAME_PPC64LE}\n"
+                            }
+                            if (params.BUILD_AMD64 && params.BUILD_PPC64LE) {
+                                pushMessage += "\nMulti-arch (auto-selects architecture):\n"
+                                pushMessage += "podman pull ${env.FULL_IMAGE_NAME}\n"
+                                if (params.BUILD_LATEST) {
+                                    pushMessage += "podman pull ${env.FULL_IMAGE_NAME_LATEST}\n"
+                                }
                             }
                         }
                         
@@ -426,25 +519,35 @@ pipeline {
                 ========================================
                 Base Image:    ${env.BASE_IMAGE}
                 Architectures: ${env.ARCHITECTURES}
+                Build Mode:    ${params.USE_MULTIARCH_BUILD ? 'Multi-Arch (Single Stage)' : 'Individual Stages'}
                 Pushed:        ${params.PUSH_TO_REGISTRY}
                 """
                 
-                if (params.BUILD_AMD64) {
-                    successMessage += "AMD64 Image:   ${env.FULL_IMAGE_NAME_AMD64}\n"
-                }
-                if (params.BUILD_PPC64LE) {
-                    successMessage += "PPC64LE Image: ${env.FULL_IMAGE_NAME_PPC64LE}\n"
-                }
-                if (params.BUILD_AMD64 && params.BUILD_PPC64LE && params.PUSH_TO_REGISTRY) {
+                if (params.USE_MULTIARCH_BUILD) {
                     successMessage += "Multi-Arch:    ${env.FULL_IMAGE_NAME}\n"
-                    if (params.BUILD_LATEST) {
+                    if (params.BUILD_LATEST && params.PUSH_TO_REGISTRY) {
                         successMessage += "Latest:        ${env.FULL_IMAGE_NAME_LATEST}\n"
+                    }
+                } else {
+                    if (params.BUILD_AMD64) {
+                        successMessage += "AMD64 Image:   ${env.FULL_IMAGE_NAME_AMD64}\n"
+                    }
+                    if (params.BUILD_PPC64LE) {
+                        successMessage += "PPC64LE Image: ${env.FULL_IMAGE_NAME_PPC64LE}\n"
+                    }
+                    if (params.BUILD_AMD64 && params.BUILD_PPC64LE && params.PUSH_TO_REGISTRY) {
+                        successMessage += "Multi-Arch:    ${env.FULL_IMAGE_NAME}\n"
+                        if (params.BUILD_LATEST) {
+                            successMessage += "Latest:        ${env.FULL_IMAGE_NAME_LATEST}\n"
+                        }
                     }
                 }
                 
                 if (!params.PUSH_TO_REGISTRY) {
                     successMessage += "\nNote: Images built locally only (not pushed to registry)\n"
-                    successMessage += "Note: Multi-arch manifest requires pushing to registry\n"
+                    if (!params.USE_MULTIARCH_BUILD) {
+                        successMessage += "Note: Multi-arch manifest requires pushing to registry\n"
+                    }
                 }
                 
                 successMessage += "========================================"
