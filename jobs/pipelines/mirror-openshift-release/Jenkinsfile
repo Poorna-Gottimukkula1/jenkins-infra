@@ -20,7 +20,7 @@ pipeline {
                     }
                     try
                     {
-                    sh '''
+                    sh '''#!/bin/bash -x
                     curl https://openshift-release-multi.apps.ci.l2s4.p1.openshiftapps.com/ > builds.raw.txt
                     cat builds.raw.txt | grep -A 2 '<td class="text-monospace"' | grep -v '^--' | awk 'NR%3{printf "%s ",$0;next;}1'|grep -vE 'Failed|.konflux-nightly-multi' |sed 's|\\([^/]*/\\)\\{4\\}[^>]*>\\([^>]*\\).*title[^"]*"\\([^"]*\\).*|\\2  \\3|' | sed 's/<\\/a//'| sort -k2 -r > raw-all-builds.txt
                     for build in $(cat raw-all-builds.txt|awk '{print $1}'); do
@@ -34,61 +34,20 @@ pipeline {
                         fi
                       fi
                     done
-                    grep '4\\.11\\.[0-9]\\?[0-9]' all-builds.txt  > all-4.11-builds.txt
-                    grep '4\\.12\\.[0-9]\\?[0-9]' all-builds.txt  > all-4.12-builds.txt
-                    grep '4\\.13\\.[0-9]\\?[0-9]' all-builds.txt  > all-4.13-builds.txt
-                    grep '4\\.14\\.[0-9]\\?[0-9]' all-builds.txt  > all-4.14-builds.txt
-                    grep '4\\.15\\.[0-9]\\?[0-9]' all-builds.txt  > all-4.15-builds.txt
-                    grep '4\\.16\\.[0-9]\\?[0-9]' all-builds.txt  > all-4.16-builds.txt
-                    grep '4\\.17\\.[0-9]\\?[0-9]' all-builds.txt  > all-4.17-builds.txt
-                    grep '4\\.18\\.[0-9]\\?[0-9]' all-builds.txt  > all-4.18-builds.txt
-                    grep '4\\.19\\.[0-9]\\?[0-9]' all-builds.txt  > all-4.19-builds.txt
-                    grep '4\\.20\\.[0-9]\\?[0-9]' all-builds.txt  > all-4.20-builds.txt
-                    grep '4\\.21\\.[0-9]\\?[0-9]' all-builds.txt  > all-4.21-builds.txt
-                    grep '4\\.22\\.[0-9]\\?[0-9]' all-builds.txt  > all-4.22-builds.txt
+                    for release in 4.15 4.16 4.17 4.18 4.19 4.20 4.21 4.22 4.23 5.0; do
+                      grep "${release//./\\.}\\.[0-9]\\?[0-9]" all-builds.txt > all-${release}-builds.txt
+                      cat all-${release}-builds.txt | head -n 1 | awk '{print $1}' > latest-${release}-build.txt
+                    done
 
-                    #Latest Builds
-                    cat all-4.11-builds.txt|head -n 1|awk '{print $1}' > latest-4.11-build.txt
-                    cat all-4.12-builds.txt|head -n 1|awk '{print $1}' > latest-4.12-build.txt
-                    cat all-4.13-builds.txt|head -n 1|awk '{print $1}' > latest-4.13-build.txt
-                    cat all-4.14-builds.txt|head -n 1|awk '{print $1}' > latest-4.14-build.txt
-                    cat all-4.15-builds.txt|head -n 1|awk '{print $1}' > latest-4.15-build.txt
-                    cat all-4.16-builds.txt|head -n 1|awk '{print $1}' > latest-4.16-build.txt
-                    cat all-4.17-builds.txt|head -n 1|awk '{print $1}' > latest-4.17-build.txt
-                    cat all-4.18-builds.txt|head -n 1|awk '{print $1}' > latest-4.18-build.txt
-                    cat all-4.19-builds.txt|head -n 1|awk '{print $1}' > latest-4.19-build.txt
-                    cat all-4.20-builds.txt|head -n 1|awk '{print $1}' > latest-4.20-build.txt
-                    cat all-4.21-builds.txt|head -n 1|awk '{print $1}' > latest-4.21-build.txt
-                    cat all-4.22-builds.txt|head -n 1|awk '{print $1}' > latest-4.22-build.txt
+                    for release in 4.15 4.16 4.17 4.18 4.19 4.20 4.21 4.22; do
+                      cat all-${release}-builds.txt | grep -v 'nightly\\|-rc\\|-fc\\|-ec' > all-${release}-stable-builds.txt
+                      cat all-${release}-stable-builds.txt | head -n 1 | awk '{print $1}' > latest-${release}-stable-build.txt
+                    done
 
-                    #All stable Builds
-                    cat all-4.11-builds.txt | grep -v 'nightly\\|-rc\\|-fc\\|-ec' > all-4.11-stable-builds.txt
-                    cat all-4.12-builds.txt | grep -v 'nightly\\|-rc\\|-fc\\|-ec' > all-4.12-stable-builds.txt
-                    cat all-4.13-builds.txt | grep -v 'nightly\\|-rc\\|-fc\\|-ec' > all-4.13-stable-builds.txt
-                    cat all-4.14-builds.txt | grep -v 'nightly\\|-rc\\|-fc\\|-ec' > all-4.14-stable-builds.txt
-                    cat all-4.15-builds.txt | grep -v 'nightly\\|-rc\\|-fc\\|-ec' > all-4.15-stable-builds.txt
-                    cat all-4.16-builds.txt | grep -v 'nightly\\|-rc\\|-fc\\|-ec' > all-4.16-stable-builds.txt
-                    cat all-4.17-builds.txt | grep -v 'nightly\\|-rc\\|-fc\\|-ec' > all-4.17-stable-builds.txt
-                    cat all-4.18-builds.txt | grep -v 'nightly\\|-rc\\|-fc\\|-ec' > all-4.18-stable-builds.txt
-                    cat all-4.19-builds.txt | grep -v 'nightly\\|-rc\\|-fc\\|-ec' > all-4.19-stable-builds.txt
-                    cat all-4.20-builds.txt | grep -v 'nightly\\|-rc\\|-fc\\|-ec' > all-4.20-stable-builds.txt
-                    cat all-4.21-builds.txt | grep -v 'nightly\\|-rc\\|-fc\\|-ec' > all-4.21-stable-builds.txt
-                    cat all-4.22-builds.txt | grep '\\-ec' > all-4.22-ec-builds.txt
-
-
-                    #Latest stable build
-                    cat all-4.11-stable-builds.txt |head -n 1|awk '{print $1}' > latest-4.11-stable-build.txt
-                    cat all-4.12-stable-builds.txt |head -n 1|awk '{print $1}' > latest-4.12-stable-build.txt
-                    cat all-4.13-stable-builds.txt |head -n 1|awk '{print $1}' > latest-4.13-stable-build.txt
-                    cat all-4.14-stable-builds.txt |head -n 1|awk '{print $1}' > latest-4.14-stable-build.txt
-                    cat all-4.15-stable-builds.txt |head -n 1|awk '{print $1}' > latest-4.15-stable-build.txt
-                    cat all-4.16-stable-builds.txt |head -n 1|awk '{print $1}' > latest-4.16-stable-build.txt
-                    cat all-4.17-stable-builds.txt |head -n 1|awk '{print $1}' > latest-4.17-stable-build.txt
-                    cat all-4.18-stable-builds.txt |head -n 1|awk '{print $1}' > latest-4.18-stable-build.txt
-                    cat all-4.19-stable-builds.txt |head -n 1|awk '{print $1}' > latest-4.19-stable-build.txt
-                    cat all-4.20-stable-builds.txt |head -n 1|awk '{print $1}' > latest-4.20-stable-build.txt
-                    cat all-4.21-stable-builds.txt |head -n 1|awk '{print $1}' > latest-4.21-stable-build.txt
-                    cat all-4.22-ec-builds.txt |head -n 1|awk '{print $1}' > latest-4.22-ec-build.txt
+                    for release in 4.23 5.0; do
+                      cat all-${release}-builds.txt | grep '\\-ec' > all-${release}-ec-builds.txt
+                      cat all-${release}-ec-builds.txt | head -n 1 | awk '{print $1}' > latest-${release}-ec-build.txt
+                    done
                     '''
                     }
                     catch (err)
@@ -103,12 +62,10 @@ pipeline {
     }
     post {
         always {
-            archiveAllArtifacts("builds.raw.txt", "all-builds.txt", "all-4.11-builds.txt", "all-4.12-builds.txt", "all-4.13-builds.txt",
-                                  "all-4.14-builds.txt", "all-4.15-builds.txt", "all-4.16-builds.txt", "all-4.17-builds.txt", "all-4.18-builds.txt", "all-4.19-builds.txt", "all-4.20-builds.txt", "all-4.21-builds.txt", "all-4.22-builds.txt",
-                                  "latest-4.11-build.txt", "latest-4.12-build.txt", "latest-4.13-build.txt", "latest-4.14-build.txt", "latest-4.15-build.txt", "latest-4.16-build.txt", 
-                                  "latest-4.17-build.txt", "latest-4.18-build.txt", "latest-4.19-build.txt", "latest-4.20-build.txt", "latest-4.21-build.txt", "latest-4.22-build.txt",
-                                  "all-4.11-stable-builds.txt","all-4.12-stable-builds.txt","all-4.13-stable-builds.txt", "all-4.14-stable-builds.txt", "all-4.15-stable-builds.txt", "all-4.16-stable-builds.txt",  "all-4.17-stable-builds.txt", "all-4.18-stable-builds.txt", "all-4.19-stable-builds.txt", "all-4.20-stable-builds.txt", "all-4.21-stable-builds.txt",
-                                  "latest-4.11-stable-build.txt", "latest-4.12-stable-build.txt","latest-4.13-stable-build.txt", "latest-4.14-stable-build.txt", "latest-4.15-stable-build.txt", "latest-4.16-stable-build.txt",  "latest-4.17-stable-build.txt", "latest-4.18-stable-build.txt", "latest-4.19-stable-build.txt", "latest-4.20-stable-build.txt", "latest-4.21-stable-build.txt", "latest-4.22-ec-build.txt")
+            archiveAllArtifacts("builds.raw.txt", "all-builds.txt", "all-4.15-builds.txt", "all-4.16-builds.txt", "all-4.17-builds.txt", "all-4.18-builds.txt", "all-4.19-builds.txt", "all-4.20-builds.txt", "all-4.21-builds.txt", "all-4.22-builds.txt", "all-4.23-builds.txt", "all-5.0-builds.txt",
+                                  "latest-4.15-build.txt", "latest-4.16-build.txt", "latest-4.17-build.txt", "latest-4.18-build.txt", "latest-4.19-build.txt", "latest-4.20-build.txt", "latest-4.21-build.txt", "latest-4.22-build.txt", "latest-4.23-build.txt", "latest-5.0-build.txt",
+                                  "all-4.15-stable-builds.txt", "all-4.16-stable-builds.txt", "all-4.17-stable-builds.txt", "all-4.18-stable-builds.txt", "all-4.19-stable-builds.txt", "all-4.20-stable-builds.txt", "all-4.21-stable-builds.txt", "all-4.22-stable-builds.txt", "all-4.23-ec-builds.txt", "all-5.0-ec-builds.txt",
+                                  "latest-4.15-stable-build.txt", "latest-4.16-stable-build.txt", "latest-4.17-stable-build.txt", "latest-4.18-stable-build.txt", "latest-4.19-stable-build.txt", "latest-4.20-stable-build.txt", "latest-4.21-stable-build.txt", "latest-4.22-stable-build.txt", "latest-4.23-ec-build.txt" "latest-5.0-ec-build.txt")
             cleanWs()
         }
     }
