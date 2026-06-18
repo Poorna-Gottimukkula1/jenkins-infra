@@ -23,12 +23,24 @@ pipeline {
     }
     
     options {
-        timestamps()
         timeout(time: 2, unit: 'HOURS')
-        buildDiscarder(logRotator(numToKeep: 30, artifactNumToKeep: 30))
+        buildDiscarder(logRotator(numToKeepStr: '30', artifactNumToKeepStr: '30'))
     }
     
     stages {
+        stage('Setup') {
+            steps {
+                script {
+                    // Enable timestamps for all output
+                    timestamps {
+                        echo "Starting PowerVS Stale Resource Cleanup Job"
+                        echo "Build: ${env.BUILD_NUMBER}"
+                        echo "Timestamp: ${new Date()}"
+                    }
+                }
+            }
+        }
+        
         stage('Checkout Scripts') {
             steps {
                 script {
