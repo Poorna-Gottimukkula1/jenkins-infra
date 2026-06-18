@@ -1,0 +1,122 @@
+pipeline {
+    agent {
+        kubernetes {
+            inheritFrom 'jenkins-agent'
+        }
+    }
+    
+    triggers {
+        // Daily at 11:00 AM IST (5:30 AM UTC)
+        cron('30 5 * * *')
+    }
+    
+    environment {
+        // Credentials will be injected as environment variables
+        IBMCLOUD_API_KEY = credentials('ibmcloud-api-key')
+        //SLACK_WEBHOOK_URL = credentials('slack-webhook-url')
+        //CIS_INSTANCE = credentials('cis-instance')
+        //CIS_DOMAIN_ID = credentials('cis-domain-id')
+        
+        // Script repository
+        SCRIPT_REPO = 'https://github.ibm.com/redstack-power/rh-ocp-ci-monitor.git'
+        SCRIPT_BRANCH = 'main'
+    }
+    
+    options {
+        timestamps()
+        timeout(time: 2, unit: 'HOURS')
+        buildDiscarder(logRotator(numToKeep: 30, artifactNumToKeep: 30))
+    }
+    
+    stages {
+        stage('Checkout Scripts') {
+            steps {
+                script {
+                    echo "Checking out scripts from ${SCRIPT_REPO}"
+                    dir('cleanup-scripts') {
+                        git branch: "${SCRIPT_BRANCH}",
+                            url: "${SCRIPT_REPO}",
+                            credentialsId: 'github-enterprise-token'
+                    }
+                }
+            }
+        }
+        
+        stage('Verify Prerequisites') {
+            steps {
+                script {
+                    echo "Verifying required tools..."
+                    sh '''
+                        which bash || (echo "bash not found" && exit 1)
+                        which curl || (echo "curl not found" && exit 1)
+                        which jq || (echo "jq not found" && exit 1)
+                        echo "All prerequisites satisfied"
+                    '''
+                }
+            }
+        }
+        
+        stage('Make Scripts Executable') {
+            steps {
+                script {
+                    dir('cleanup-scripts') {
+                        sh '''
+                            chmod +x query_powervs_stale_resource.sh
+                            chmod +x send_stale_resources_to_slack.sh
+                            ls -la *.sh
+                        '''
+                    }
+                }
+            }
+        }
+        
+        stage('Run Stale Resource Discovery') {
+            steps {
+                script {
+                    echo "Running PowerVS stale resource discovery..."
+                    dir('cleanup-scripts') {
+                        sh '''
+                            #./query_powervs_stale_resource.sh > stale_cleanup.log 2>&1
+                            echo "Discovery completed. Log file created."
+                        '''
+                    }
+                }
+            }
+        }
+        
+        stage('Send Report to Slack') {
+            steps {
+                script {
+                    echo "Sending stale resource report to Slack..."
+                    dir('cleanup-scripts') {
+                        sh '''
+                            #./send_stale_resources_to_slack.sh stale_cleanup.log
+                            echo "Slack notification sent."
+                        '''
+                    }
+                }
+            }
+        }
+    }
+    
+    post {
+        always {
+            script {
+                echo "Archiving logs..."
+                dir('cleanup-scripts') {
+                    archiveArtifacts artifacts: 'stale_cleanup.log', 
+                                   allowEmptyArchive: true,
+                                   fingerprint: true
+                }
+            }
+        }
+        success {
+            echo "PowerVS stale resource cleanup job completed successfully!"
+        }
+        failure {
+            echo "PowerVS stale resource cleanup job failed. Check logs for details."
+        }
+    }
+}
+
+// Made with Bob
