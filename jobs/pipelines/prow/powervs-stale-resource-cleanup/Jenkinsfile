@@ -28,19 +28,6 @@ pipeline {
     }
     
     stages {
-        stage('Setup') {
-            steps {
-                script {
-                    // Enable timestamps for all output
-                    timestamps {
-                        echo "Starting PowerVS Stale Resource Cleanup Job"
-                        echo "Build: ${env.BUILD_NUMBER}"
-                        echo "Timestamp: ${new Date()}"
-                    }
-                }
-            }
-        }
-        
         stage('Checkout Scripts') {
             steps {
                 script {
@@ -115,11 +102,10 @@ pipeline {
         always {
             script {
                 echo "Archiving logs..."
-                dir('cleanup-scripts') {
-                    archiveArtifacts artifacts: 'stale_cleanup.log', 
-                                   allowEmptyArchive: true,
-                                   fingerprint: true
-                }
+                // Archive from the workspace root, not inside dir()
+                archiveArtifacts artifacts: 'cleanup-scripts/stale_cleanup.log',
+                               allowEmptyArchive: true,
+                               fingerprint: true
             }
         }
         success {
