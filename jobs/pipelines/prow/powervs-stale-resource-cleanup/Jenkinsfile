@@ -12,14 +12,14 @@ pipeline {
     
     environment {
         // Credentials will be injected as environment variables
-        IBMCLOUD_API_KEY = credentials('ibmcloud-api-key')
-        SLACK_WEBHOOK_URL = credentials('slack-webhook-url')
-        CIS_INSTANCE = credentials('cis-instance')
-        CIS_DOMAIN_ID = credentials('cis-domain-id')
-        GITHUB_TOKEN = credentials('GITHUB_TOKEN')
-        
-        // Script base URL (raw GitHub Enterprise format with subdirectory)
+        IBMCLOUD_API_KEY = credentials('IBMCLOUD_PROD_API_PROW_KEY')
+        //SLACK_WEBHOOK_URL = credentials('slack-webhook-url')
+        //GITHUB_TOKEN = credentials('GITHUB_TOKEN')
+        CIS_INSTANCE = "---"
+        CIS_DOMAIN_ID = "----"
+        // Script base URL (raw GitHub Enterprise format)
         SCRIPT_BASE_URL = 'https://raw.github.ibm.com/redstack-power/rh-ocp-ci-monitor/refs/heads/main/ocp-infra-diagnostics-and-automation'
+        GITHUB_TOKEN = credentials('GITHUB_TOKEN')
     }
     
     options {
@@ -32,84 +32,48 @@ pipeline {
             steps {
                 script {
                     echo "Downloading scripts from GitHub Enterprise..."
-                    sh """
+                    sh '''
                         mkdir -p cleanup-scripts
                         cd cleanup-scripts
                         
                         # Download scripts using curl with token authentication
-                        curl -H "Authorization: token ${GITHUB_TOKEN}" \\
-                             -H "Accept: application/vnd.github.v3.raw" \\
-                             -o query_powervs_stale_resource.sh \\
+                        curl -H "Authorization: token ${GITHUB_TOKEN}" \
+                             -H "Accept: application/vnd.github.v3.raw" \
+                             -o query_powervs_stale_resource_new.sh \
                              -L "${SCRIPT_BASE_URL}/query_powervs_stale_resource_new.sh"
-                        
-                        curl -H "Authorization: token ${GITHUB_TOKEN}" \\
-                             -H "Accept: application/vnd.github.v3.raw" \\
-                             -o send_stale_resources_to_slack.sh \\
-                             -L "${SCRIPT_BASE_URL}/send_stale_resources_to_slack.sh"
                         
                         echo "Scripts downloaded successfully"
                         ls -la *.sh
-                    """
-                }
-            }
-        }
-        
-        stage('Verify Prerequisites') {
-            steps {
-                script {
-                    echo "Verifying required tools..."
-                    sh '''
-                        which bash || (echo "bash not found" && exit 1)
-                        which curl || (echo "curl not found" && exit 1)
-                        which jq || (echo "jq not found" && exit 1)
-                        echo "All prerequisites satisfied"
                     '''
                 }
             }
         }
-        
-        stage('Make Scripts Executable') {
-            steps {
-                script {
-                    dir('cleanup-scripts') {
-                        sh '''
-                            chmod +x query_powervs_stale_resource.sh
-                            chmod +x send_stale_resources_to_slack.sh
-                            ls -la *.sh
-                        '''
-                    }
-                }
-            }
-        }
+    
         
         stage('Run Stale Resource Discovery') {
             steps {
                 script {
-                    echo "Running PowerVS stale resource discovery..."
+                    echo "Running PowerVS stale resource discovery in DEBUG mode..."
                     dir('cleanup-scripts') {
-                        sh """
-                            ./query_powervs_stale_resource.sh \\
-                                ibm_cloud_api_key=${IBMCLOUD_API_KEY} \\
-                                cis-instance=${CIS_INSTANCE} \\
-                                cis-domain-id=${CIS_DOMAIN_ID} \\
-                                > stale_cleanup.log 2>&1
-                            echo "Discovery completed. Log file created."
-                        """
-                    }
-                }
-            }
-        }
-        
-        stage('Send Report to Slack') {
-            steps {
-                script {
-                    echo "Sending stale resource report to Slack..."
-                    dir('cleanup-scripts') {
-                        sh """
-                            chmod +x send_stale_resources_to_slack.sh
-                            ./send_stale_resources_to_slack.sh stale_cleanup.log
-                            echo "Slack notification sent."
-                        """
+                        sh '''#!/bin/bash -x
+                            set -x  # Enable debug mode
+                            
+                            echo "=== Starting stale resource discovery ==="
+                            echo "Script: query_powervs_stale_resource_new.sh"
+                            echo "Arguments: ibm_cloud_api_key=<REDACTED> cis-instance=${CIS_INSTANCE} cis-domain-id=${CIS_DOMAIN_ID}"
+                            echo ""
+                            chmod +x query_powervs_stale_resource_new.sh
+                            # Run with debug output to both console and log file
+                            ./query_powervs_stale_resource_new.sh \
+                                ibm_cloud_api_key=${IBMCLOUD_API_KEY} \
+                                cis-instance=${CIS_INSTANCE} \
+                                cis-domain-id=${CIS_DOMAIN_ID} \
+                                2>&1 | tee stale_cleanup.log
+                            
+                            echo ""
+                            echo "=== Discovery completed. Log file created ==="
+                            echo "Log file size: $(wc -l < stale_cleanup.log) lines"
+                        '''
                     }
                 }
             }
@@ -134,5 +98,3 @@ pipeline {
         }
     }
 }
-
-// Made with Bob
