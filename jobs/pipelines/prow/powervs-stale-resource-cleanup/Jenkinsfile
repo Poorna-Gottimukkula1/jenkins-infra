@@ -12,14 +12,14 @@ pipeline {
     
     environment {
         // Credentials will be injected as environment variables
-        //IBMCLOUD_API_KEY = credentials('ibmcloud-api-key')
-        //SLACK_WEBHOOK_URL = credentials('slack-webhook-url')
-        //CIS_INSTANCE = credentials('cis-instance')
-        //CIS_DOMAIN_ID = credentials('cis-domain-id')
+        IBMCLOUD_API_KEY = credentials('ibmcloud-api-key')
+        SLACK_WEBHOOK_URL = credentials('slack-webhook-url')
+        CIS_INSTANCE = credentials('cis-instance')
+        CIS_DOMAIN_ID = credentials('cis-domain-id')
+        GITHUB_TOKEN = credentials('GITHUB_TOKEN')
         
-        // Script repository
-        SCRIPT_REPO = 'https://github.ibm.com/redstack-power/rh-ocp-ci-monitor.git'
-        SCRIPT_BRANCH = 'main'
+        // Script base URL (raw GitHub Enterprise format with subdirectory)
+        SCRIPT_BASE_URL = 'https://raw.github.ibm.com/redstack-power/rh-ocp-ci-monitor/refs/heads/main/ocp-infra-diagnostics-and-automation'
     }
     
     options {
@@ -28,15 +28,28 @@ pipeline {
     }
     
     stages {
-        stage('Checkout Scripts') {
+        stage('Download Scripts') {
             steps {
                 script {
-                    echo "Checking out scripts from ${SCRIPT_REPO}"
-                    dir('cleanup-scripts') {
-                        git branch: "${SCRIPT_BRANCH}",
-                            url: "${SCRIPT_REPO}",
-                            credentialsId: 'github-enterprise-token'
-                    }
+                    echo "Downloading scripts from GitHub Enterprise..."
+                    sh """
+                        mkdir -p cleanup-scripts
+                        cd cleanup-scripts
+                        
+                        # Download scripts using curl with token authentication
+                        curl -H "Authorization: token ${GITHUB_TOKEN}" \\
+                             -H "Accept: application/vnd.github.v3.raw" \\
+                             -o query_powervs_stale_resource.sh \\
+                             -L "${SCRIPT_BASE_URL}/query_powervs_stale_resource_new.sh"
+                        
+                        curl -H "Authorization: token ${GITHUB_TOKEN}" \\
+                             -H "Accept: application/vnd.github.v3.raw" \\
+                             -o send_stale_resources_to_slack.sh \\
+                             -L "${SCRIPT_BASE_URL}/send_stale_resources_to_slack.sh"
+                        
+                        echo "Scripts downloaded successfully"
+                        ls -la *.sh
+                    """
                 }
             }
         }
@@ -74,10 +87,14 @@ pipeline {
                 script {
                     echo "Running PowerVS stale resource discovery..."
                     dir('cleanup-scripts') {
-                        sh '''
-                            #./query_powervs_stale_resource.sh > stale_cleanup.log 2>&1
+                        sh """
+                            ./query_powervs_stale_resource.sh \\
+                                ibm_cloud_api_key=${IBMCLOUD_API_KEY} \\
+                                cis-instance=${CIS_INSTANCE} \\
+                                cis-domain-id=${CIS_DOMAIN_ID} \\
+                                > stale_cleanup.log 2>&1
                             echo "Discovery completed. Log file created."
-                        '''
+                        """
                     }
                 }
             }
@@ -88,10 +105,11 @@ pipeline {
                 script {
                     echo "Sending stale resource report to Slack..."
                     dir('cleanup-scripts') {
-                        sh '''
-                            #./send_stale_resources_to_slack.sh stale_cleanup.log
+                        sh """
+                            chmod +x send_stale_resources_to_slack.sh
+                            ./send_stale_resources_to_slack.sh stale_cleanup.log
                             echo "Slack notification sent."
-                        '''
+                        """
                     }
                 }
             }
