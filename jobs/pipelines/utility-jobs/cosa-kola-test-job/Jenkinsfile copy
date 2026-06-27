@@ -31,11 +31,6 @@ pipeline {
             description: 'Specific build version to test (e.g., 42.20250205.91.0). Leave empty to fetch latest from stream.'
         )
         string(
-            name: 'FEDORA_COREOS_CONFIG_BRANCH',
-            defaultValue: 'rawhide',
-            description: 'Branch of fedora-coreos-config to use'
-        )
-        string(
             name: 'QEMU_MEMORY',
             defaultValue: '4096',
             description: 'Memory in MB for QEMU VM (4096 recommended for kernel-replace test)'

@@ -1,0 +1,198 @@
+pipeline {
+    agent any
+    
+    parameters {
+        choice(
+            name: 'TEST_TYPE',
+            choices: ['SUCCESS', 'FAILURE', 'UNSTABLE', 'ABORTED'],
+            description: 'Type of notification to test'
+        )
+        string(
+            name: 'SLACK_CHANNEL',
+            defaultValue: '#fedora-coreos-ci-tests',
+            description: 'Slack channel to send notification'
+        )
+        text(
+            name: 'CUSTOM_MESSAGE',
+            defaultValue: 'This is a test message from Jenkins pipeline',
+            description: 'Custom message to include in notification'
+        )
+    }
+    
+    stages {
+        stage('Test Slack Notification') {
+            steps {
+                script {
+                    echo "========================================="
+                    echo "Testing Slack Notification"
+                    echo "Type: ${params.TEST_TYPE}"
+                    echo "Channel: ${params.SLACK_CHANNEL}"
+                    echo "========================================="
+                    
+                    // Simulate different scenarios
+                    if (params.TEST_TYPE == 'SUCCESS') {
+                        echo "✅ Simulating SUCCESS scenario"
+                        currentBuild.result = 'SUCCESS'
+                    } else if (params.TEST_TYPE == 'FAILURE') {
+                        echo "❌ Simulating FAILURE scenario"
+                        currentBuild.result = 'FAILURE'
+                        error("Intentional failure for testing Slack notification")
+                    } else if (params.TEST_TYPE == 'UNSTABLE') {
+                        echo "⚠️ Simulating UNSTABLE scenario"
+                        currentBuild.result = 'UNSTABLE'
+                    } else if (params.TEST_TYPE == 'ABORTED') {
+                        echo "🛑 Simulating ABORTED scenario"
+                        currentBuild.result = 'ABORTED'
+                    }
+                }
+            }
+        }
+    }
+    
+    post {
+        success {
+            script {
+                echo "========================================="
+                echo "✅ Test completed successfully"
+                echo "========================================="
+                
+                def message = """
+:white_check_mark: *Slack Notification Test - SUCCESS*
+
+*Build*: #${BUILD_NUMBER}
+*Job*: ${env.JOB_NAME}
+*URL*: ${env.BUILD_URL}
+*Test Type*: ${params.TEST_TYPE}
+
+*Custom Message*:
+${params.CUSTOM_MESSAGE}
+
+This is a test notification from Jenkins.
+"""
+                
+                slackSend(
+                    channel: params.SLACK_CHANNEL,
+                    color: 'good',
+                    message: message,
+                    tokenCredentialId: 'slack-token'
+                )
+                
+                echo "✅ SUCCESS notification sent to ${params.SLACK_CHANNEL}"
+            }
+        }
+        
+        failure {
+            script {
+                echo "========================================="
+                echo "❌ Test failed (intentional for testing)"
+                echo "========================================="
+                
+                def message = """
+:x: *Slack Notification Test - FAILURE*
+
+*Build*: #${BUILD_NUMBER}
+*Job*: ${env.JOB_NAME}
+*URL*: ${env.BUILD_URL}
+*Test Type*: ${params.TEST_TYPE}
+
+*Custom Message*:
+${params.CUSTOM_MESSAGE}
+
+*Sample Error Log (last 10 lines):*
+```
+[ERROR] Test failure simulation
+[ERROR] This is line 1 of sample error
+[ERROR] This is line 2 of sample error
+[ERROR] This is line 3 of sample error
+[ERROR] This is line 4 of sample error
+[ERROR] This is line 5 of sample error
+[ERROR] This is line 6 of sample error
+[ERROR] This is line 7 of sample error
+[ERROR] This is line 8 of sample error
+[ERROR] Intentional failure for Slack notification testing
+```
+
+This is a test notification from Jenkins.
+"""
+                
+                slackSend(
+                    channel: params.SLACK_CHANNEL,
+                    color: 'danger',
+                    message: message,
+                    tokenCredentialId: 'slack-token'
+                )
+                
+                echo "✅ FAILURE notification sent to ${params.SLACK_CHANNEL}"
+            }
+        }
+        
+        unstable {
+            script {
+                echo "========================================="
+                echo "⚠️ Test unstable"
+                echo "========================================="
+                
+                def message = """
+:warning: *Slack Notification Test - UNSTABLE*
+
+*Build*: #${BUILD_NUMBER}
+*Job*: ${env.JOB_NAME}
+*URL*: ${env.BUILD_URL}
+*Test Type*: ${params.TEST_TYPE}
+
+*Custom Message*:
+${params.CUSTOM_MESSAGE}
+
+This is a test notification from Jenkins.
+"""
+                
+                slackSend(
+                    channel: params.SLACK_CHANNEL,
+                    color: 'warning',
+                    message: message,
+                    tokenCredentialId: 'slack-token'
+                )
+                
+                echo "✅ UNSTABLE notification sent to ${params.SLACK_CHANNEL}"
+            }
+        }
+        
+        aborted {
+            script {
+                echo "========================================="
+                echo "🛑 Test aborted"
+                echo "========================================="
+                
+                def message = """
+:octagonal_sign: *Slack Notification Test - ABORTED*
+
+*Build*: #${BUILD_NUMBER}
+*Job*: ${env.JOB_NAME}
+*URL*: ${env.BUILD_URL}
+*Test Type*: ${params.TEST_TYPE}
+
+*Custom Message*:
+${params.CUSTOM_MESSAGE}
+
+This is a test notification from Jenkins.
+"""
+                
+                slackSend(
+                    channel: params.SLACK_CHANNEL,
+                    color: '#808080',
+                    message: message,
+                    tokenCredentialId: 'slack-token'
+                )
+                
+                echo "✅ ABORTED notification sent to ${params.SLACK_CHANNEL}"
+            }
+        }
+        
+        always {
+            echo "========================================="
+            echo "Slack Notification Test Complete"
+            echo "Check ${params.SLACK_CHANNEL} for the notification"
+            echo "========================================="
+        }
+    }
+}
