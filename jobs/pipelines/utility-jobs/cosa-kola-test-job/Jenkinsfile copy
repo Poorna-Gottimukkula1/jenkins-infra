@@ -490,6 +490,12 @@ EOF
                                 ${parallelFlag} \\
                                 ${kolaArgs} \\
                                 2>&1 | tee kola-test-output.log
+                            
+                            KOLA_EXIT=\$?
+                            if [ \$KOLA_EXIT -ne 0 ]; then
+                                echo "❌ Kola test FAILED with exit code: \$KOLA_EXIT"
+                                exit \$KOLA_EXIT
+                            fi
                         """
                     }
                     
