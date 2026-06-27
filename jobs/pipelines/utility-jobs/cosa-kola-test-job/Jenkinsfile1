@@ -776,17 +776,34 @@ Full logs: ${env.BUILD_URL}artifact/
                 echo "- console.txt (if test started)"
                 echo "- journal.txt (if available)"
                 
-                // Get console log
+                // Get console log - check both test-results and original location
                 def consoleLog = ""
                 try {
+                    // First try test-results (if Collect Results stage ran)
                     def consoleFile = "${WORKSPACE_DIR}/test-results/console.txt"
                     if (fileExists(consoleFile)) {
                         consoleLog = sh(
-                            script: "tail -20 ${consoleFile}",
+                            script: "tail -30 ${consoleFile}",
                             returnStdout: true
                         ).trim()
                     } else {
-                        consoleLog = "Console log not found (VM may not have started)"
+                        // Try original location (if aborted before Collect Results)
+                        def originalConsole = sh(
+                            script: """
+                                cd ${WORKSPACE_DIR}
+                                find tmp/kola/ -name "console.txt" -type f 2>/dev/null | head -1
+                            """,
+                            returnStdout: true
+                        ).trim()
+                        
+                        if (originalConsole) {
+                            consoleLog = sh(
+                                script: "tail -30 ${WORKSPACE_DIR}/${originalConsole}",
+                                returnStdout: true
+                            ).trim()
+                        } else {
+                            consoleLog = "Console log not found (VM may not have started)"
+                        }
                     }
                 } catch (Exception e) {
                     consoleLog = "Error reading console log: ${e.message}"
@@ -804,7 +821,7 @@ Full logs: ${env.BUILD_URL}artifact/
 
 *Reason*: Build was manually aborted or timed out
 
-*Last 20 lines of console log (if available):*
+*Last 30 lines of console log (if available):*
 ```
 ${consoleLog}
 ```
