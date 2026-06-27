@@ -671,9 +671,10 @@ EOF
                 echo "✅ COSA Kola Test PASSED on ppc64le"
                 echo "========================================="
                 
-                // Get console log
+                // Get console log - check both test-results and original location
                 def consoleLog = ""
                 try {
+                    // First try test-results (if Collect Results stage ran)
                     def consoleFile = "${WORKSPACE_DIR}/test-results/console.txt"
                     if (fileExists(consoleFile)) {
                         consoleLog = sh(
@@ -681,7 +682,23 @@ EOF
                             returnStdout: true
                         ).trim()
                     } else {
-                        consoleLog = "Console log not found"
+                        // Try original location
+                        def originalConsole = sh(
+                            script: """
+                                cd ${WORKSPACE_DIR}
+                                find tmp/kola/ -name "console.txt" -type f 2>/dev/null | head -1
+                            """,
+                            returnStdout: true
+                        ).trim()
+                        
+                        if (originalConsole) {
+                            consoleLog = sh(
+                                script: "tail -20 ${WORKSPACE_DIR}/${originalConsole}",
+                                returnStdout: true
+                            ).trim()
+                        } else {
+                            consoleLog = "Console log not found (test may not have started VM)"
+                        }
                     }
                 } catch (Exception e) {
                     consoleLog = "Error reading console log: ${e.message}"
@@ -723,9 +740,10 @@ Full logs: ${env.BUILD_URL}artifact/
                 echo "- console.txt"
                 echo "- journal.txt"
                 
-                // Get console log
+                // Get console log - check both test-results and original location
                 def consoleLog = ""
                 try {
+                    // First try test-results (if Collect Results stage ran)
                     def consoleFile = "${WORKSPACE_DIR}/test-results/console.txt"
                     if (fileExists(consoleFile)) {
                         consoleLog = sh(
@@ -733,7 +751,23 @@ Full logs: ${env.BUILD_URL}artifact/
                             returnStdout: true
                         ).trim()
                     } else {
-                        consoleLog = "Console log not found"
+                        // Try original location
+                        def originalConsole = sh(
+                            script: """
+                                cd ${WORKSPACE_DIR}
+                                find tmp/kola/ -name "console.txt" -type f 2>/dev/null | head -1
+                            """,
+                            returnStdout: true
+                        ).trim()
+                        
+                        if (originalConsole) {
+                            consoleLog = sh(
+                                script: "tail -30 ${WORKSPACE_DIR}/${originalConsole}",
+                                returnStdout: true
+                            ).trim()
+                        } else {
+                            consoleLog = "Console log not found (test may not have started VM)"
+                        }
                     }
                 } catch (Exception e) {
                     consoleLog = "Error reading console log: ${e.message}"
