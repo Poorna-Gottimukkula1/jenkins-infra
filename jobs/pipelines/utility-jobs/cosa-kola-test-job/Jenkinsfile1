@@ -938,10 +938,26 @@ EOF
                 echo "✅ COSA Tests PASSED on ppc64le"
                 echo "========================================="
                 
+                // Read actual build ID
+                def actualBuildId = ""
+                if (fileExists("${WORKSPACE_DIR}/actual-build-id.txt")) {
+                    actualBuildId = readFile("${WORKSPACE_DIR}/actual-build-id.txt").trim()
+                }
+                
+                // Format build version display
+                def buildVersionDisplay = ""
+                if (params.BUILD_VERSION) {
+                    buildVersionDisplay = params.BUILD_VERSION
+                } else if (actualBuildId) {
+                    buildVersionDisplay = "latest (${actualBuildId})"
+                } else {
+                    buildVersionDisplay = "latest"
+                }
+                
                 // Build test list
                 def testsRun = []
                 if (params.RUN_KOLA_TESTS) testsRun.add("Kola: ${params.KOLA_TEST}")
-                if (params.RUN_UPGRADE_TESTS) testsRun.add("Upgrade from ${params.BUILD_VERSION ?: 'latest'}")
+                if (params.RUN_UPGRADE_TESTS) testsRun.add("Upgrade")
                 
                 // Get console log - check both test-results and original location
                 def consoleLog = ""
@@ -950,7 +966,7 @@ EOF
                     def consoleFile = "${WORKSPACE_DIR}/test-results/console.txt"
                     if (fileExists(consoleFile)) {
                         consoleLog = sh(
-                            script: "tail -20 ${consoleFile} | sed 's/\\x1b\\[[0-9;]*m//g' | sed 's/\\x1b\\[?[0-9;]*[a-zA-Z]//g'",
+                            script: "tail -30 ${consoleFile} | sed 's/\\x1b\\[[0-9;]*m//g' | sed 's/\\x1b\\[?[0-9;]*[a-zA-Z]//g'",
                             returnStdout: true
                         ).trim()
                     } else {
@@ -965,7 +981,7 @@ EOF
                         
                         if (originalConsole) {
                             consoleLog = sh(
-                                script: "tail -20 ${WORKSPACE_DIR}/${originalConsole} | sed 's/\\x1b\\[[0-9;]*m//g' | sed 's/\\x1b\\[?[0-9;]*[a-zA-Z]//g'",
+                                script: "tail -30 ${WORKSPACE_DIR}/${originalConsole} | sed 's/\\x1b\\[[0-9;]*m//g' | sed 's/\\x1b\\[?[0-9;]*[a-zA-Z]//g'",
                                 returnStdout: true
                             ).trim()
                         } else {
@@ -980,14 +996,14 @@ EOF
 :white_check_mark: *COSA Tests PASSED on ppc64le*
 
 *Build*: #${BUILD_NUMBER}
-*Mode*: ${params.BUILD_MODE}${params.RUN_UPGRADE_TESTS ? ' (forced build for upgrade)' : ''}
+*Mode*: ${params.BUILD_MODE}
 *Tests Run*: ${testsRun.join(', ')}
 *Branch*: ${params.FEDORA_COREOS_CONFIG_BRANCH}
-*Build Version*: ${params.BUILD_VERSION ?: 'latest'}
+*Build Version*: ${buildVersionDisplay}
 *Job*: ${env.JOB_NAME}
 *URL*: ${env.BUILD_URL}
 
-*Last 20 lines of console log:*
+*Last 30 lines of console log (if available):*
 ```
 ${consoleLog}
 ```
@@ -1015,10 +1031,26 @@ Full logs: ${env.BUILD_URL}artifact/
                 echo "- console.txt"
                 echo "- journal.txt"
                 
+                // Read actual build ID
+                def actualBuildId = ""
+                if (fileExists("${WORKSPACE_DIR}/actual-build-id.txt")) {
+                    actualBuildId = readFile("${WORKSPACE_DIR}/actual-build-id.txt").trim()
+                }
+                
+                // Format build version display
+                def buildVersionDisplay = ""
+                if (params.BUILD_VERSION) {
+                    buildVersionDisplay = params.BUILD_VERSION
+                } else if (actualBuildId) {
+                    buildVersionDisplay = "latest (${actualBuildId})"
+                } else {
+                    buildVersionDisplay = "latest"
+                }
+                
                 // Build test list
                 def testsRun = []
                 if (params.RUN_KOLA_TESTS) testsRun.add("Kola: ${params.KOLA_TEST}")
-                if (params.RUN_UPGRADE_TESTS) testsRun.add("Upgrade from ${params.BUILD_VERSION ?: 'latest'}")
+                if (params.RUN_UPGRADE_TESTS) testsRun.add("Upgrade")
                 
                 // Get console log - check both test-results and original location
                 def consoleLog = ""
@@ -1057,14 +1089,14 @@ Full logs: ${env.BUILD_URL}artifact/
 :x: *COSA Tests FAILED on ppc64le*
 
 *Build*: #${BUILD_NUMBER}
-*Mode*: ${params.BUILD_MODE}${params.RUN_UPGRADE_TESTS ? ' (forced build for upgrade)' : ''}
+*Mode*: ${params.BUILD_MODE}
 *Tests Run*: ${testsRun.join(', ')}
 *Branch*: ${params.FEDORA_COREOS_CONFIG_BRANCH}
-*Build Version*: ${params.BUILD_VERSION ?: 'latest'}
+*Build Version*: ${buildVersionDisplay}
 *Job*: ${env.JOB_NAME}
 *URL*: ${env.BUILD_URL}
 
-*Last 30 lines of console log:*
+*Last 30 lines of console log (if available):*
 ```
 ${consoleLog}
 ```
@@ -1093,10 +1125,26 @@ Full logs: ${env.BUILD_URL}artifact/
                 echo "- console.txt (if test started)"
                 echo "- journal.txt (if available)"
                 
+                // Read actual build ID
+                def actualBuildId = ""
+                if (fileExists("${WORKSPACE_DIR}/actual-build-id.txt")) {
+                    actualBuildId = readFile("${WORKSPACE_DIR}/actual-build-id.txt").trim()
+                }
+                
+                // Format build version display
+                def buildVersionDisplay = ""
+                if (params.BUILD_VERSION) {
+                    buildVersionDisplay = params.BUILD_VERSION
+                } else if (actualBuildId) {
+                    buildVersionDisplay = "latest (${actualBuildId})"
+                } else {
+                    buildVersionDisplay = "latest"
+                }
+                
                 // Build test list
                 def testsRun = []
                 if (params.RUN_KOLA_TESTS) testsRun.add("Kola: ${params.KOLA_TEST}")
-                if (params.RUN_UPGRADE_TESTS) testsRun.add("Upgrade from ${params.BUILD_VERSION ?: 'latest'}")
+                if (params.RUN_UPGRADE_TESTS) testsRun.add("Upgrade")
                 
                 // Get console log - check both test-results and original location
                 def consoleLog = ""
@@ -1135,10 +1183,10 @@ Full logs: ${env.BUILD_URL}artifact/
 :warning: *COSA Tests ABORTED on ppc64le*
 
 *Build*: #${BUILD_NUMBER}
-*Mode*: ${params.BUILD_MODE}${params.RUN_UPGRADE_TESTS ? ' (forced build for upgrade)' : ''}
+*Mode*: ${params.BUILD_MODE}
 *Tests Run*: ${testsRun.join(', ')}
 *Branch*: ${params.FEDORA_COREOS_CONFIG_BRANCH}
-*Build Version*: ${params.BUILD_VERSION ?: 'latest'}
+*Build Version*: ${buildVersionDisplay}
 *Job*: ${env.JOB_NAME}
 *URL*: ${env.BUILD_URL}
 
