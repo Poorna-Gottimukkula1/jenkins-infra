@@ -584,10 +584,13 @@ EOF
                 """
                 
                 echo "=== Archiving Artifacts ==="
-                archiveArtifacts allowEmptyArchive: true,
-                    artifacts: "${WORKSPACE_DIR}/test-results/**/*",
-                    fingerprint: true,
-                    onlyIfSuccessful: false
+                // Use relative path from workspace root
+                dir("${WORKSPACE_DIR}") {
+                    archiveArtifacts allowEmptyArchive: true,
+                        artifacts: "test-results/**/*",
+                        fingerprint: true,
+                        onlyIfSuccessful: false
+                }
                 
                 echo "=== Cleaning Up COSA Container ==="
                 sh """
