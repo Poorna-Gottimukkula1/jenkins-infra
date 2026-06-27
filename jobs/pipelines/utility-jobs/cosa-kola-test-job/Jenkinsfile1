@@ -16,10 +16,15 @@ pipeline {
             defaultValue: 'https://github.com/coreos/fedora-coreos-config',
             description: 'Fedora CoreOS config repository URL'
         )
-        choice(
+        string(
             name: 'FEDORA_COREOS_CONFIG_BRANCH',
+            defaultValue: '',
+            description: 'Fedora CoreOS config branch (leave empty to use STREAM, or specify a custom branch to test specific kola test code)'
+        )
+        choice(
+            name: 'STREAM',
             choices: ['rawhide', 'testing-devel', 'stable', 'testing', 'next', 'next-devel'],
-            description: 'Fedora CoreOS config branch and stream'
+            description: 'Fedora CoreOS stream (used for cosa init when FEDORA_COREOS_CONFIG_BRANCH is empty, and always used for cosa buildfetch)'
         )
         booleanParam(
             name: 'RUN_KOLA_TESTS',
@@ -120,7 +125,8 @@ pipeline {
                     echo "Build Mode: ${params.BUILD_MODE}"
                     echo "Architecture: ppc64le"
                     echo "Config Repo: ${params.FEDORA_COREOS_CONFIG_REPO}"
-                    echo "Config Branch: ${params.FEDORA_COREOS_CONFIG_BRANCH}"
+                    echo "Config Branch (for kola tests): ${params.FEDORA_COREOS_CONFIG_BRANCH}"
+                    echo "Stream (for builds): ${params.STREAM}"
                     echo "Run Kola Tests: ${params.RUN_KOLA_TESTS}"
                     if (params.RUN_KOLA_TESTS) {
                         echo "  Kola Test: ${params.KOLA_TEST}"
@@ -217,11 +223,20 @@ pipeline {
                         
                         echo "Using container name: ${COSA_CONTAINER_NAME}"
                         
+                        # Determine which branch to use for cosa init
+                        if [ -n "${params.FEDORA_COREOS_CONFIG_BRANCH}" ]; then
+                            INIT_BRANCH="${params.FEDORA_COREOS_CONFIG_BRANCH}"
+                            echo "Using custom branch for cosa init: \$INIT_BRANCH"
+                        else
+                            INIT_BRANCH="${params.STREAM}"
+                            echo "Using stream as branch for cosa init: \$INIT_BRANCH"
+                        fi
+                        
                         # Initialize COSA with fedora-coreos-config
-                        cosa init --branch ${params.FEDORA_COREOS_CONFIG_BRANCH} \\
+                        cosa init --branch \$INIT_BRANCH \\
                             ${params.FEDORA_COREOS_CONFIG_REPO}
                         
-                        echo "✅ COSA initialized successfully"
+                        echo "✅ COSA initialized successfully with branch: \$INIT_BRANCH"
                         ls -la
                     """
                 }
@@ -321,7 +336,7 @@ EOF
                         
                         if [ -n "${params.BUILD_VERSION}" ]; then
                             echo "Fetching specific build: ${params.BUILD_VERSION} for ppc64le..."
-                            echo "Note: Stream/branch parameter (${params.FEDORA_COREOS_CONFIG_BRANCH}) is ignored when BUILD_VERSION is specified"
+                            echo "Note: Stream parameter (${params.STREAM}) is ignored when BUILD_VERSION is specified"
                             
                             # Fetch the specific build
                             cosa buildfetch ${forceFlag} --build=${params.BUILD_VERSION} --arch=ppc64le
@@ -333,13 +348,13 @@ EOF
                             echo "Decompressing artifact for build ${params.BUILD_VERSION}..."
                             cosa decompress --build ${params.BUILD_VERSION}
                         else
-                            echo "Fetching latest build from ${params.FEDORA_COREOS_CONFIG_BRANCH} stream for ppc64le..."
+                            echo "Fetching latest build from ${params.STREAM} stream for ppc64le..."
                             
                             # Fetch the latest from stream
-                            cosa buildfetch ${forceFlag} --stream=${params.FEDORA_COREOS_CONFIG_BRANCH} --arch=ppc64le
+                            cosa buildfetch ${forceFlag} --stream=${params.STREAM} --arch=ppc64le
                             
                             # Fetch the qemu artifact from stream
-                            cosa buildfetch --stream=${params.FEDORA_COREOS_CONFIG_BRANCH} --artifact=qemu
+                            cosa buildfetch --stream=${params.STREAM} --artifact=qemu
                             
                             # Decompress (will use latest)
                             echo "Decompressing artifact..."
@@ -382,7 +397,8 @@ EOF
                     }
                     
                     // Create a simple, clean description
-                    def description = "Build: ${buildInfo} | Mode: ${params.BUILD_MODE} | Tests: ${testInfo.join(', ')} | Branch: ${params.FEDORA_COREOS_CONFIG_BRANCH}"
+                    def branchInfo = params.FEDORA_COREOS_CONFIG_BRANCH ? "Branch: ${params.FEDORA_COREOS_CONFIG_BRANCH}" : "Stream: ${params.STREAM}"
+                    def description = "Build: ${buildInfo} | Mode: ${params.BUILD_MODE} | Tests: ${testInfo.join(', ')} | ${branchInfo}"
                     
                     currentBuild.description = description
                     echo "Build description set: ${description}"
@@ -974,7 +990,8 @@ Build Number: ${BUILD_NUMBER}
 Build Mode: ${params.BUILD_MODE}
 Architecture: ppc64le
 Config Repo: ${params.FEDORA_COREOS_CONFIG_REPO}
-Config Branch: ${params.FEDORA_COREOS_CONFIG_BRANCH}
+Config Branch (kola tests): ${params.FEDORA_COREOS_CONFIG_BRANCH ?: 'Using STREAM'}
+Stream: ${params.STREAM}
 Build Version: \$BUILD_VER
 Kola Tests: ${params.RUN_KOLA_TESTS}
 Kola Test: ${params.KOLA_TEST}
@@ -982,7 +999,6 @@ Multiply: ${params.MULTIPLY}
 Upgrade Tests: ${params.RUN_UPGRADE_TESTS}
 Parallel: ${params.PARALLEL}
 COSA Container: ${params.COSA_CONTAINER}
-Config Branch: ${params.FEDORA_COREOS_CONFIG_BRANCH}
 Memory: ${params.QEMU_MEMORY}MB
 Debug Mode: ${params.DEBUG_MODE}
 Denylist: Completely cleared
@@ -1152,7 +1168,8 @@ EOF
 *Build*: #${BUILD_NUMBER}
 *Mode*: ${params.BUILD_MODE}
 *Tests Run*: ${testsRun.join(', ')}
-*Branch*: ${params.FEDORA_COREOS_CONFIG_BRANCH}
+*Stream*: ${params.STREAM}
+${params.FEDORA_COREOS_CONFIG_BRANCH ? "*Custom Branch*: ${params.FEDORA_COREOS_CONFIG_BRANCH}" : ""}
 *Build Version*: ${buildVersionDisplay}
 *Job*: ${env.JOB_NAME}
 *URL*: ${env.BUILD_URL}
