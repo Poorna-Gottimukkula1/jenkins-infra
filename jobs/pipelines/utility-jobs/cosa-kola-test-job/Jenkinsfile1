@@ -820,7 +820,7 @@ EOF
                         echo "Build version: ${buildVersion}"
                         
                         # Create the target_stream.bu butane config
-                        cosa shell -- tee tmp/target_stream.bu <<EOF
+                        cat > tmp/target_stream.bu <<EOF
 variant: fcos
 version: 1.0.0
 storage:
@@ -877,6 +877,11 @@ EOF
                         # Copy upgrade test output
                         if [ -f kola-upgrade-output.log ]; then
                             cp kola-upgrade-output.log test-results/
+                        fi
+                        
+                        # Copy extended upgrade test output
+                        if [ -f kola-extended-upgrade-output.log ]; then
+                            cp kola-extended-upgrade-output.log test-results/
                         fi
                         
                         # Copy upgrade test results
@@ -1069,6 +1074,7 @@ EOF
                 def testsRun = []
                 if (params.RUN_KOLA_TESTS) testsRun.add("Kola: ${params.KOLA_TEST}")
                 if (params.RUN_UPGRADE_TESTS) testsRun.add("Upgrade")
+                if (params.RUN_EXTENDED_UPGRADE_TESTS) testsRun.add("Extended Upgrade (${params.TARGET_UPGRADE_STREAM})")
                 
                 // Get console log - check both test-results and original location
                 def consoleLog = ""
@@ -1162,6 +1168,7 @@ Full logs: ${env.BUILD_URL}artifact/
                 def testsRun = []
                 if (params.RUN_KOLA_TESTS) testsRun.add("Kola: ${params.KOLA_TEST}")
                 if (params.RUN_UPGRADE_TESTS) testsRun.add("Upgrade")
+                if (params.RUN_EXTENDED_UPGRADE_TESTS) testsRun.add("Extended Upgrade (${params.TARGET_UPGRADE_STREAM})")
                 
                 // Get console log - check both test-results and original location
                 def consoleLog = ""
@@ -1256,6 +1263,7 @@ Full logs: ${env.BUILD_URL}artifact/
                 def testsRun = []
                 if (params.RUN_KOLA_TESTS) testsRun.add("Kola: ${params.KOLA_TEST}")
                 if (params.RUN_UPGRADE_TESTS) testsRun.add("Upgrade")
+                if (params.RUN_EXTENDED_UPGRADE_TESTS) testsRun.add("Extended Upgrade (${params.TARGET_UPGRADE_STREAM})")
                 
                 // Get console log - check both test-results and original location
                 def consoleLog = ""
