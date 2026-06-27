@@ -487,6 +487,16 @@ EOF
                         find tmp/kola/ -maxdepth 2 -name "*.log" -type f -exec cp {} test-results/ \\; 2>/dev/null || true
                         
                         # Create summary
+                        BUILD_VER="${params.BUILD_VERSION}"
+                        if [ -z "\$BUILD_VER" ]; then
+                            BUILD_VER="latest from stream"
+                        fi
+                        
+                        TEST_DIR="\${TEST_UUID_DIR}"
+                        if [ -z "\$TEST_DIR" ]; then
+                            TEST_DIR="Not found"
+                        fi
+                        
                         cat > test-results/test-summary.txt << EOF
 ========================================
 COSA Kola Test Summary - ppc64le
@@ -494,14 +504,14 @@ COSA Kola Test Summary - ppc64le
 Build Number: ${BUILD_NUMBER}
 Architecture: ppc64le (fixed)
 Stream: ${params.STREAM}
-Build Version: ${params.BUILD_VERSION:-latest from stream}
+Build Version: \$BUILD_VER
 Test: ${params.KOLA_TEST}
 COSA Container: ${params.COSA_CONTAINER}
 Config Branch: ${params.FEDORA_COREOS_CONFIG_BRANCH}
 Memory: ${params.QEMU_MEMORY}MB
 Debug Mode: ${params.DEBUG_MODE}
 Denylist: Completely cleared
-Test UUID Directory: \${TEST_UUID_DIR:-Not found}
+Test UUID Directory: \$TEST_DIR
 Timestamp: \$(date)
 ========================================
 
