@@ -36,6 +36,16 @@ pipeline {
             defaultValue: false,
             description: 'Run upgrade tests with cosa kola run-upgrade --build=BUILD_VERSION (or latest if empty). Automatically determines upgrade path.'
         )
+        booleanParam(
+            name: 'RUN_EXTENDED_UPGRADE_TESTS',
+            defaultValue: false,
+            description: 'Run extended upgrade kola tests (cosa kola run --tag extended-upgrade). Tests upgrades from older Fedora versions.'
+        )
+        choice(
+            name: 'TARGET_UPGRADE_STREAM',
+            choices: ['rawhide', 'testing-devel', 'stable', 'testing', 'next', 'next-devel'],
+            description: 'Target stream for extended upgrade tests (where to upgrade TO)'
+        )
         choice(
             name: 'COSA_CONTAINER',
             choices: [
@@ -119,14 +129,18 @@ pipeline {
                     if (params.RUN_UPGRADE_TESTS) {
                         echo "  Upgrade From: ${params.BUILD_VERSION ?: 'latest'}"
                     }
+                    echo "Run Extended Upgrade Tests: ${params.RUN_EXTENDED_UPGRADE_TESTS}"
+                    if (params.RUN_EXTENDED_UPGRADE_TESTS) {
+                        echo "  Target Upgrade Stream: ${params.TARGET_UPGRADE_STREAM}"
+                    }
                     echo "COSA Container: ${params.COSA_CONTAINER}"
                     echo "Memory: ${params.QEMU_MEMORY}MB"
                     echo "Debug Mode: ${params.DEBUG_MODE}"
                     echo "========================================="
                     
                     // Validation
-                    if (!params.RUN_KOLA_TESTS && !params.RUN_UPGRADE_TESTS) {
-                        error("At least one of RUN_KOLA_TESTS or RUN_UPGRADE_TESTS must be enabled!")
+                    if (!params.RUN_KOLA_TESTS && !params.RUN_UPGRADE_TESTS && !params.RUN_EXTENDED_UPGRADE_TESTS) {
+                        error("At least one of RUN_KOLA_TESTS, RUN_UPGRADE_TESTS, or RUN_EXTENDED_UPGRADE_TESTS must be enabled!")
                     }
                     
                     // Create workspace directory
@@ -743,6 +757,103 @@ EOF
                         fi
                         
                         echo "✅ Upgrade test completed successfully"
+                    """
+                }
+            }
+        }
+        
+        stage('Run Extended Upgrade Tests') {
+            when {
+                expression { params.RUN_EXTENDED_UPGRADE_TESTS == true }
+            }
+            steps {
+                script {
+                    echo "========================================="
+                    echo "=== Running Extended Upgrade Kola Tests ==="
+                    echo "========================================="
+                    
+                    def targetStream = params.TARGET_UPGRADE_STREAM
+                    def buildVersion = params.BUILD_VERSION ?: 'latest'
+                    
+                    sh """
+                        cd ${WORKSPACE_DIR}
+                        
+                        # Override cosa function to use unique container name
+                        cosa() {
+                            env | grep COREOS_ASSEMBLER
+                            local -r COREOS_ASSEMBLER_CONTAINER_LATEST="quay.io/coreos-assembler/coreos-assembler:latest"
+                            
+                            if [[ -z \${COREOS_ASSEMBLER_CONTAINER} ]] && podman image exists \${COREOS_ASSEMBLER_CONTAINER_LATEST}; then
+                                local -r cosa_build_date_str="\$(podman inspect -f "{{.Created}}" \${COREOS_ASSEMBLER_CONTAINER_LATEST} | awk '{print \$1}')"
+                                local -r cosa_build_date="\$(date -d \${cosa_build_date_str} +%s)"
+                                
+                                if [[ \$(date +%s) -ge \$((cosa_build_date + 60*60*24*7)) ]]; then
+                                    echo -e "\\e[0;33m----" >&2
+                                    echo "The COSA container image is more than a week old and likely outdated." >&2
+                                    echo "You should pull the latest version with:" >&2
+                                    echo "podman pull \${COREOS_ASSEMBLER_CONTAINER_LATEST}" >&2
+                                    echo -e "----\\e[0m" >&2
+                                    sleep 10
+                                fi
+                            fi
+                            
+                            set -x
+                            podman run --rm -ti --security-opt=label=disable --privileged \\
+                                --userns=keep-id:uid=1000,gid=1000 \\
+                                -v=\${PWD}:/srv/ --device=/dev/kvm --device=/dev/fuse \\
+                                --tmpfs=/tmp -v=/var/tmp:/var/tmp --name=${COSA_CONTAINER_NAME} \\
+                                \${COREOS_ASSEMBLER_CONFIG_GIT:+-v=\$COREOS_ASSEMBLER_CONFIG_GIT:/srv/src/config/:ro} \\
+                                \${COREOS_ASSEMBLER_GIT:+-v=\$COREOS_ASSEMBLER_GIT/src/:/usr/lib/coreos-assembler/:ro} \\
+                                \${COREOS_ASSEMBLER_ADD_CERTS:+-v=/etc/pki/ca-trust:/etc/pki/ca-trust:ro} \\
+                                \${COREOS_ASSEMBLER_CONTAINER_RUNTIME_ARGS} \\
+                                \${COREOS_ASSEMBLER_CONTAINER:-\$COREOS_ASSEMBLER_CONTAINER_LATEST} "\$@"
+                            rc=\$?
+                            set +x
+                            return \$rc
+                        }
+                        
+                        # Set COREOS_ASSEMBLER_CONTAINER environment variable
+                        export COREOS_ASSEMBLER_CONTAINER="${params.COSA_CONTAINER}"
+                        
+                        echo "Using container name: ${COSA_CONTAINER_NAME}"
+                        echo "Running extended upgrade tests to target stream: ${targetStream}"
+                        echo "Build version: ${buildVersion}"
+                        
+                        # Create the target_stream.bu butane config
+                        cosa shell -- tee tmp/target_stream.bu <<EOF
+variant: fcos
+version: 1.0.0
+storage:
+  files:
+    - path: /etc/target_stream
+      mode: 0644
+      contents:
+        inline: |
+          ${targetStream}
+EOF
+                        
+                        # Enable pipefail to capture exit code from cosa kola run, not tee
+                        set -o pipefail
+                        
+                        # Run extended upgrade tests
+                        cosa kola run \\
+                            --build=${buildVersion} \\
+                            --arch=ppc64le \\
+                            --tag extended-upgrade \\
+                            --append-butane tmp/target_stream.bu \\
+                            --qemu-memory ${params.QEMU_MEMORY} \\
+                            --parallel ${params.PARALLEL} \\
+                            2>&1 | tee kola-extended-upgrade-output.log
+                        
+                        EXTENDED_UPGRADE_EXIT=\$?
+                        echo "Extended upgrade test completed with exit code: \$EXTENDED_UPGRADE_EXIT"
+                        
+                        if [ \$EXTENDED_UPGRADE_EXIT -ne 0 ]; then
+                            echo "❌ Extended upgrade test FAILED with exit code: \$EXTENDED_UPGRADE_EXIT"
+                            exit \$EXTENDED_UPGRADE_EXIT
+                        fi
+                        
+                        echo "✅ Extended upgrade test completed successfully"
                     """
                 }
             }
