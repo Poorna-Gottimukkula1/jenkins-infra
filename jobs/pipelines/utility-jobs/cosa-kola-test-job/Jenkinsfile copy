@@ -7,9 +7,9 @@ pipeline {
     
     parameters {
         choice(
-            name: 'STREAM',
+            name: 'FEDORA_COREOS_CONFIG_BRANCH',
             choices: ['rawhide', 'stable', 'testing', 'next'],
-            description: 'Fedora CoreOS stream to test'
+            description: 'Fedora CoreOS config branch and stream to test'
         )
         string(
             name: 'KOLA_TEST',
@@ -270,7 +270,7 @@ EOF
                         
                         if [ -n "${params.BUILD_VERSION}" ]; then
                             echo "Fetching specific build: ${params.BUILD_VERSION} for ppc64le..."
-                            echo "Note: Stream parameter (${params.STREAM}) is ignored when BUILD_VERSION is specified"
+                            echo "Note: Stream/branch parameter (${params.FEDORA_COREOS_CONFIG_BRANCH}) is ignored when BUILD_VERSION is specified"
                             
                             # Fetch the specific build
                             cosa buildfetch ${forceFlag} --build=${params.BUILD_VERSION} --arch=ppc64le
@@ -282,13 +282,13 @@ EOF
                             echo "Decompressing artifact for build ${params.BUILD_VERSION}..."
                             cosa decompress --build ${params.BUILD_VERSION}
                         else
-                            echo "Fetching latest build from ${params.STREAM} stream for ppc64le..."
+                            echo "Fetching latest build from ${params.FEDORA_COREOS_CONFIG_BRANCH} stream for ppc64le..."
                             
                             # Fetch the latest from stream
-                            cosa buildfetch ${forceFlag} --stream=${params.STREAM} --arch=ppc64le
+                            cosa buildfetch ${forceFlag} --stream=${params.FEDORA_COREOS_CONFIG_BRANCH} --arch=ppc64le
                             
                             # Fetch the qemu artifact from stream
-                            cosa buildfetch --stream=${params.STREAM} --artifact=qemu
+                            cosa buildfetch --stream=${params.FEDORA_COREOS_CONFIG_BRANCH} --artifact=qemu
                             
                             # Decompress (will use latest)
                             echo "Decompressing artifact..."
