@@ -399,6 +399,7 @@ EOF
                                 
                                 # Just wait for completion, no tailing
                                 wait \$KOLA_PID
+                                KOLA_EXIT=\$?
                             else
                                 # Single test - tail the console log
                                 CONSOLE_LOG=\$(find tmp/kola/ -name "console.txt" -type f 2>/dev/null | head -1)
@@ -424,7 +425,14 @@ EOF
                                 else
                                     echo "⚠️  Console log not found, waiting for test completion..."
                                     wait \$KOLA_PID
+                                    KOLA_EXIT=\$?
                                 fi
+                            fi
+                            
+                            # Check exit code and fail if test failed
+                            if [ \$KOLA_EXIT -ne 0 ]; then
+                                echo "❌ Kola test FAILED with exit code: \$KOLA_EXIT"
+                                exit \$KOLA_EXIT
                             fi
                         """
                     } else {
@@ -490,7 +498,7 @@ EOF
                         """
                     }
                     
-                    echo "✅ Kola test completed"
+                    echo "✅ Kola test completed successfully"
                 }
             }
         }
