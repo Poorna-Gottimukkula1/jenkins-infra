@@ -40,11 +40,6 @@ pipeline {
             defaultValue: '4096',
             description: 'Memory in MB for QEMU VM (4096 recommended for kernel-replace test)'
         )
-        string(
-            name: 'QEMU_DISK',
-            defaultValue: '20',
-            description: 'Disk size in GB for QEMU VM'
-        )
         booleanParam(
             name: 'DEBUG_MODE',
             defaultValue: true,
@@ -346,7 +341,7 @@ EOF
                             
                             echo "Starting kola test: ${params.KOLA_TEST}"
                             echo "Architecture: ppc64le"
-                            echo "Memory: ${params.QEMU_MEMORY}MB, Disk: ${params.QEMU_DISK}GB"
+                            echo "Memory: ${params.QEMU_MEMORY}MB"
                             echo "Additional args: ${kolaArgs}"
                             echo ""
                             
@@ -354,7 +349,6 @@ EOF
                             cosa kola run '${params.KOLA_TEST}' \\
                                 ${debugFlag} \\
                                 --qemu-memory ${params.QEMU_MEMORY} \\
-                                --qemu-disk ${params.QEMU_DISK} \\
                                 ${kolaArgs} \\
                                 2>&1 | tee kola-test-output.log &
                             
@@ -437,7 +431,6 @@ EOF
                             cosa kola run '${params.KOLA_TEST}' \\
                                 ${debugFlag} \\
                                 --qemu-memory ${params.QEMU_MEMORY} \\
-                                --qemu-disk ${params.QEMU_DISK} \\
                                 ${kolaArgs} \\
                                 2>&1 | tee kola-test-output.log
                         """
@@ -506,7 +499,6 @@ Test: ${params.KOLA_TEST}
 COSA Container: ${params.COSA_CONTAINER}
 Config Branch: ${params.FEDORA_COREOS_CONFIG_BRANCH}
 Memory: ${params.QEMU_MEMORY}MB
-Disk: ${params.QEMU_DISK}GB
 Debug Mode: ${params.DEBUG_MODE}
 Denylist: Completely cleared
 Test UUID Directory: \${TEST_UUID_DIR:-Not found}
