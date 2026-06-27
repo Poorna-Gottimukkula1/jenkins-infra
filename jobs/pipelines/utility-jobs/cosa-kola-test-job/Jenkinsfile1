@@ -367,12 +367,8 @@ EOF
                         testInfo.add("Upgrade")
                     }
                     
-                    def description = """
-                    <b>Build:</b> ${buildInfo}<br/>
-                    <b>Mode:</b> ${params.BUILD_MODE}<br/>
-                    <b>Tests:</b> ${testInfo.join(', ')}<br/>
-                    <b>Branch:</b> ${params.FEDORA_COREOS_CONFIG_BRANCH}
-                    """.stripIndent().trim()
+                    // Create a simple, clean description
+                    def description = "Build: ${buildInfo} | Mode: ${params.BUILD_MODE} | Tests: ${testInfo.join(', ')} | Branch: ${params.FEDORA_COREOS_CONFIG_BRANCH}"
                     
                     currentBuild.description = description
                     echo "Build description set: ${description}"
