@@ -943,6 +943,7 @@ Full logs: ${env.BUILD_URL}artifact/
                     channel: '#fedora-coreos-ci-tests',
                     color: 'good',
                     message: slackMessage,
+                    sendAsText: true,
                     //tokenCredentialId: 'slack-token'
                 )
             }
@@ -1019,6 +1020,7 @@ Full logs: ${env.BUILD_URL}artifact/
                     channel: '#fedora-coreos-ci-tests',
                     color: 'danger',
                     message: slackMessage,
+                    sendAsText: true,
                     //tokenCredentialId: 'slack-token'
                 )
             }
@@ -1098,6 +1100,7 @@ Partial logs: ${env.BUILD_URL}artifact/
                     channel: '#fedora-coreos-ci-tests',
                     color: 'warning',
                     message: slackMessage,
+                    sendAsText: true,
                     //tokenCredentialId: 'slack-token'
                 )
             }
