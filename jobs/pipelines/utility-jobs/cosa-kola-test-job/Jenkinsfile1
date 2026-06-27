@@ -9,7 +9,7 @@ pipeline {
         choice(
             name: 'BUILD_MODE',
             choices: ['fetch', 'build'],
-            description: 'fetch: Download pre-built artifacts | build: Build from scratch'
+            description: 'fetch: Download pre-built artifacts | build: Build from scratch. NOTE: Upgrade tests always force build mode.'
         )
         string(
             name: 'FEDORA_COREOS_CONFIG_REPO',
@@ -107,15 +107,27 @@ pipeline {
                     echo "========================================="
                     echo "COSA Kola Test Pipeline - ppc64le"
                     echo "========================================="
-                    echo "Architecture: ppc64le (fixed)"
-                    echo "Stream: ${params.STREAM}"
-                    echo "Test: ${params.KOLA_TEST}"
-                    echo "COSA Container: ${params.COSA_CONTAINER}"
+                    echo "Build Mode: ${params.BUILD_MODE}"
+                    echo "Architecture: ppc64le"
+                    echo "Config Repo: ${params.FEDORA_COREOS_CONFIG_REPO}"
                     echo "Config Branch: ${params.FEDORA_COREOS_CONFIG_BRANCH}"
+                    echo "Run Kola Tests: ${params.RUN_KOLA_TESTS}"
+                    if (params.RUN_KOLA_TESTS) {
+                        echo "  Kola Test: ${params.KOLA_TEST}"
+                    }
+                    echo "Run Upgrade Tests: ${params.RUN_UPGRADE_TESTS}"
+                    if (params.RUN_UPGRADE_TESTS) {
+                        echo "  Upgrade From: ${params.BUILD_VERSION ?: 'latest'}"
+                    }
+                    echo "COSA Container: ${params.COSA_CONTAINER}"
                     echo "Memory: ${params.QEMU_MEMORY}MB"
-                    echo "Disk: ${params.QEMU_DISK}GB"
                     echo "Debug Mode: ${params.DEBUG_MODE}"
                     echo "========================================="
+                    
+                    // Validation
+                    if (!params.RUN_KOLA_TESTS && !params.RUN_UPGRADE_TESTS) {
+                        error("At least one of RUN_KOLA_TESTS or RUN_UPGRADE_TESTS must be enabled!")
+                    }
                     
                     // Create workspace directory
                     sh """
@@ -193,7 +205,7 @@ pipeline {
                         
                         # Initialize COSA with fedora-coreos-config
                         cosa init --branch ${params.FEDORA_COREOS_CONFIG_BRANCH} \\
-                            https://github.com/coreos/fedora-coreos-config
+                            ${params.FEDORA_COREOS_CONFIG_REPO}
                         
                         echo "✅ COSA initialized successfully"
                         ls -la
@@ -239,6 +251,11 @@ EOF
         }
         
         stage('Fetch Pre-built Artifact') {
+            when {
+                expression {
+                    params.BUILD_MODE == 'fetch' && params.RUN_UPGRADE_TESTS == false
+                }
+            }
             steps {
                 script {
                     echo "=== Fetching Pre-built Artifact for ppc64le ==="
@@ -322,7 +339,80 @@ EOF
             }
         }
         
+        stage('Build from Scratch') {
+            when {
+                expression { 
+                    params.BUILD_MODE == 'build' || params.RUN_UPGRADE_TESTS == true 
+                }
+            }
+            steps {
+                script {
+                    echo "========================================="
+                    echo "=== Building CoreOS from Scratch ==="
+                    echo "========================================="
+                    
+                    sh """
+                        cd ${WORKSPACE_DIR}
+                        
+                        # Override cosa function to use unique container name
+                        cosa() {
+                            env | grep COREOS_ASSEMBLER
+                            local -r COREOS_ASSEMBLER_CONTAINER_LATEST="quay.io/coreos-assembler/coreos-assembler:latest"
+                            
+                            if [[ -z \${COREOS_ASSEMBLER_CONTAINER} ]] && podman image exists \${COREOS_ASSEMBLER_CONTAINER_LATEST}; then
+                                local -r cosa_build_date_str="\$(podman inspect -f "{{.Created}}" \${COREOS_ASSEMBLER_CONTAINER_LATEST} | awk '{print \$1}')"
+                                local -r cosa_build_date="\$(date -d \${cosa_build_date_str} +%s)"
+                                
+                                if [[ \$(date +%s) -ge \$((cosa_build_date + 60*60*24*7)) ]]; then
+                                    echo -e "\\e[0;33m----" >&2
+                                    echo "The COSA container image is more than a week old and likely outdated." >&2
+                                    echo "You should pull the latest version with:" >&2
+                                    echo "podman pull \${COREOS_ASSEMBLER_CONTAINER_LATEST}" >&2
+                                    echo -e "----\\e[0m" >&2
+                                    sleep 10
+                                fi
+                            fi
+                            
+                            set -x
+                            podman run --rm -ti --security-opt=label=disable --privileged \\
+                                --userns=keep-id:uid=1000,gid=1000 \\
+                                -v=\${PWD}:/srv/ --device=/dev/kvm --device=/dev/fuse \\
+                                --tmpfs=/tmp -v=/var/tmp:/var/tmp --name=${COSA_CONTAINER_NAME} \\
+                                \${COREOS_ASSEMBLER_CONFIG_GIT:+-v=\$COREOS_ASSEMBLER_CONFIG_GIT:/srv/src/config/:ro} \\
+                                \${COREOS_ASSEMBLER_GIT:+-v=\$COREOS_ASSEMBLER_GIT/src/:/usr/lib/coreos-assembler/:ro} \\
+                                \${COREOS_ASSEMBLER_ADD_CERTS:+-v=/etc/pki/ca-trust:/etc/pki/ca-trust:ro} \\
+                                \${COREOS_ASSEMBLER_CONTAINER_RUNTIME_ARGS} \\
+                                \${COREOS_ASSEMBLER_CONTAINER:-\$COREOS_ASSEMBLER_CONTAINER_LATEST} "\$@"
+                            rc=\$?
+                            set +x
+                            return \$rc
+                        }
+                        
+                        # Set COREOS_ASSEMBLER_CONTAINER environment variable
+                        export COREOS_ASSEMBLER_CONTAINER="${params.COSA_CONTAINER}"
+                        
+                        echo "Using container name: ${COSA_CONTAINER_NAME}"
+                        
+                        echo "Fetching dependencies..."
+                        cosa fetch --strict
+                        
+                        echo "Building OSTree..."
+                        cosa build ostree --force --strict
+                        
+                        echo "Building images (qemu, metal, metal4k, live)..."
+                        cosa osbuild qemu metal metal4k live
+                        
+                        echo "✅ Build completed successfully"
+                        ls -lh builds/
+                    """
+                }
+            }
+        }
+        
         stage('Run Kola Test') {
+            when {
+                expression { params.RUN_KOLA_TESTS == true }
+            }
             steps {
                 script {
                     echo "========================================="
@@ -625,9 +715,20 @@ EOF
                         # Create results directory
                         mkdir -p test-results
                         
-                        # Copy test output
+                        # Copy kola test output
                         if [ -f kola-test-output.log ]; then
                             cp kola-test-output.log test-results/
+                        fi
+                        
+                        # Copy upgrade test output
+                        if [ -f kola-upgrade-output.log ]; then
+                            cp kola-upgrade-output.log test-results/
+                        fi
+                        
+                        # Copy upgrade test results
+                        if [ -d tmp/kola-upgrade ]; then
+                            echo "Copying upgrade test results..."
+                            cp -r tmp/kola-upgrade/* test-results/ 2>/dev/null || true
                         fi
                         
                         # Find the test UUID directory
@@ -673,14 +774,18 @@ EOF
                         
                         cat > test-results/test-summary.txt << EOF
 ========================================
-COSA Kola Test Summary - ppc64le
+COSA Test Summary - ppc64le
 ========================================
 Build Number: ${BUILD_NUMBER}
-Architecture: ppc64le (fixed)
-Stream: ${params.STREAM}
+Build Mode: ${params.BUILD_MODE}
+Architecture: ppc64le
+Config Repo: ${params.FEDORA_COREOS_CONFIG_REPO}
+Config Branch: ${params.FEDORA_COREOS_CONFIG_BRANCH}
 Build Version: \$BUILD_VER
-Test: ${params.KOLA_TEST}
+Kola Tests: ${params.RUN_KOLA_TESTS}
+Kola Test: ${params.KOLA_TEST}
 Multiply: ${params.MULTIPLY}
+Upgrade Tests: ${params.RUN_UPGRADE_TESTS}
 Parallel: ${params.PARALLEL}
 COSA Container: ${params.COSA_CONTAINER}
 Config Branch: ${params.FEDORA_COREOS_CONFIG_BRANCH}
@@ -774,8 +879,13 @@ EOF
         success {
             script {
                 echo "========================================="
-                echo "✅ COSA Kola Test PASSED on ppc64le"
+                echo "✅ COSA Tests PASSED on ppc64le"
                 echo "========================================="
+                
+                // Build test list
+                def testsRun = []
+                if (params.RUN_KOLA_TESTS) testsRun.add("Kola: ${params.KOLA_TEST}")
+                if (params.RUN_UPGRADE_TESTS) testsRun.add("Upgrade from ${params.BUILD_VERSION ?: 'latest'}")
                 
                 // Get console log - check both test-results and original location
                 def consoleLog = ""
@@ -811,11 +921,12 @@ EOF
                 }
                 
                 def slackMessage = """
-:white_check_mark: *COSA Kola Test PASSED on ppc64le*
+:white_check_mark: *COSA Tests PASSED on ppc64le*
 
 *Build*: #${BUILD_NUMBER}
-*Test*: ${params.KOLA_TEST}
-*Stream/Branch*: ${params.FEDORA_COREOS_CONFIG_BRANCH}
+*Mode*: ${params.BUILD_MODE}${params.RUN_UPGRADE_TESTS ? ' (forced build for upgrade)' : ''}
+*Tests Run*: ${testsRun.join(', ')}
+*Branch*: ${params.FEDORA_COREOS_CONFIG_BRANCH}
 *Build Version*: ${params.BUILD_VERSION ?: 'latest'}
 *Job*: ${env.JOB_NAME}
 *URL*: ${env.BUILD_URL}
@@ -839,12 +950,18 @@ Full logs: ${env.BUILD_URL}artifact/
         failure {
             script {
                 echo "========================================="
-                echo "❌ COSA Kola Test FAILED on ppc64le"
+                echo "❌ COSA Tests FAILED on ppc64le"
                 echo "========================================="
                 echo "Check archived artifacts for details:"
                 echo "- kola-test-output.log"
+                echo "- kola-upgrade-output.log"
                 echo "- console.txt"
                 echo "- journal.txt"
+                
+                // Build test list
+                def testsRun = []
+                if (params.RUN_KOLA_TESTS) testsRun.add("Kola: ${params.KOLA_TEST}")
+                if (params.RUN_UPGRADE_TESTS) testsRun.add("Upgrade from ${params.BUILD_VERSION ?: 'latest'}")
                 
                 // Get console log - check both test-results and original location
                 def consoleLog = ""
@@ -880,11 +997,12 @@ Full logs: ${env.BUILD_URL}artifact/
                 }
                 
                 def slackMessage = """
-:x: *COSA Kola Test FAILED on ppc64le*
+:x: *COSA Tests FAILED on ppc64le*
 
 *Build*: #${BUILD_NUMBER}
-*Test*: ${params.KOLA_TEST}
-*Stream/Branch*: ${params.FEDORA_COREOS_CONFIG_BRANCH}
+*Mode*: ${params.BUILD_MODE}${params.RUN_UPGRADE_TESTS ? ' (forced build for upgrade)' : ''}
+*Tests Run*: ${testsRun.join(', ')}
+*Branch*: ${params.FEDORA_COREOS_CONFIG_BRANCH}
 *Build Version*: ${params.BUILD_VERSION ?: 'latest'}
 *Job*: ${env.JOB_NAME}
 *URL*: ${env.BUILD_URL}
@@ -908,13 +1026,19 @@ Full logs: ${env.BUILD_URL}artifact/
         aborted {
             script {
                 echo "========================================="
-                echo "⚠️  COSA Kola Test ABORTED on ppc64le"
+                echo "⚠️  COSA Tests ABORTED on ppc64le"
                 echo "========================================="
                 echo "Partial logs have been captured in artifacts"
                 echo "Check archived artifacts for what was generated:"
                 echo "- kola-test-output.log (partial)"
+                echo "- kola-upgrade-output.log (partial)"
                 echo "- console.txt (if test started)"
                 echo "- journal.txt (if available)"
+                
+                // Build test list
+                def testsRun = []
+                if (params.RUN_KOLA_TESTS) testsRun.add("Kola: ${params.KOLA_TEST}")
+                if (params.RUN_UPGRADE_TESTS) testsRun.add("Upgrade from ${params.BUILD_VERSION ?: 'latest'}")
                 
                 // Get console log - check both test-results and original location
                 def consoleLog = ""
@@ -950,11 +1074,12 @@ Full logs: ${env.BUILD_URL}artifact/
                 }
                 
                 def slackMessage = """
-:warning: *COSA Kola Test ABORTED on ppc64le*
+:warning: *COSA Tests ABORTED on ppc64le*
 
 *Build*: #${BUILD_NUMBER}
-*Test*: ${params.KOLA_TEST}
-*Stream/Branch*: ${params.FEDORA_COREOS_CONFIG_BRANCH}
+*Mode*: ${params.BUILD_MODE}${params.RUN_UPGRADE_TESTS ? ' (forced build for upgrade)' : ''}
+*Tests Run*: ${testsRun.join(', ')}
+*Branch*: ${params.FEDORA_COREOS_CONFIG_BRANCH}
 *Build Version*: ${params.BUILD_VERSION ?: 'latest'}
 *Job*: ${env.JOB_NAME}
 *URL*: ${env.BUILD_URL}
