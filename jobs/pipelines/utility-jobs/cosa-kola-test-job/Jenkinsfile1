@@ -421,7 +421,7 @@ EOF
                                     KOLA_EXIT=\$?
                                 fi
                             fi
-                            
+                            echo "Kola test with exit code: \$KOLA_EXIT"
                             # Check exit code and fail if test failed
                             if [ \$KOLA_EXIT -ne 0 ]; then
                                 echo "❌ Kola test FAILED with exit code: \$KOLA_EXIT"
@@ -490,6 +490,7 @@ EOF
                                 2>&1 | tee kola-test-output.log
                             
                             KOLA_EXIT=\$?
+                            echo "Kola test with exit code: \$KOLA_EXIT"
                             if [ \$KOLA_EXIT -ne 0 ]; then
                                 echo "❌ Kola test FAILED with exit code: \$KOLA_EXIT"
                                 exit \$KOLA_EXIT
@@ -659,9 +660,52 @@ EOF
             }
         }
         success {
-            echo "========================================="
-            echo "✅ COSA Kola Test PASSED on ppc64le"
-            echo "========================================="
+            script {
+                echo "========================================="
+                echo "✅ COSA Kola Test PASSED on ppc64le"
+                echo "========================================="
+                
+                // Get console log
+                def consoleLog = ""
+                try {
+                    def consoleFile = "${WORKSPACE_DIR}/test-results/console.txt"
+                    if (fileExists(consoleFile)) {
+                        consoleLog = sh(
+                            script: "tail -20 ${consoleFile}",
+                            returnStdout: true
+                        ).trim()
+                    } else {
+                        consoleLog = "Console log not found"
+                    }
+                } catch (Exception e) {
+                    consoleLog = "Error reading console log: ${e.message}"
+                }
+                
+                def slackMessage = """
+:white_check_mark: *COSA Kola Test PASSED on ppc64le*
+
+*Build*: #${BUILD_NUMBER}
+*Test*: ${params.KOLA_TEST}
+*Stream/Branch*: ${params.FEDORA_COREOS_CONFIG_BRANCH}
+*Build Version*: ${params.BUILD_VERSION ?: 'latest'}
+*Job*: ${env.JOB_NAME}
+*URL*: ${env.BUILD_URL}
+
+*Last 20 lines of console log:*
+```
+${consoleLog}
+```
+
+Full logs: ${env.BUILD_URL}artifact/
+"""
+                
+                slackSend(
+                    channel: '#fedora-coreos-ci-tests',
+                    color: 'good',
+                    message: slackMessage,
+                    //tokenCredentialId: 'slack-token'
+                )
+            }
         }
         failure {
             script {
@@ -673,13 +717,13 @@ EOF
                 echo "- console.txt"
                 echo "- journal.txt"
                 
-                // Send Slack notification with last 10 lines of console log
+                // Get console log
                 def consoleLog = ""
                 try {
                     def consoleFile = "${WORKSPACE_DIR}/test-results/console.txt"
                     if (fileExists(consoleFile)) {
                         consoleLog = sh(
-                            script: "tail -10 ${consoleFile}",
+                            script: "tail -30 ${consoleFile}",
                             returnStdout: true
                         ).trim()
                     } else {
@@ -699,12 +743,12 @@ EOF
 *Job*: ${env.JOB_NAME}
 *URL*: ${env.BUILD_URL}
 
-*Last 10 lines of console log:*
+*Last 30 lines of console log:*
 ```
 ${consoleLog}
 ```
 
-Check full logs in build artifacts.
+Full logs: ${env.BUILD_URL}artifact/
 """
                 
                 slackSend(
@@ -716,14 +760,59 @@ Check full logs in build artifacts.
             }
         }
         aborted {
-            echo "========================================="
-            echo "⚠️  COSA Kola Test ABORTED on ppc64le"
-            echo "========================================="
-            echo "Partial logs have been captured in artifacts"
-            echo "Check archived artifacts for what was generated:"
-            echo "- kola-test-output.log (partial)"
-            echo "- console.txt (if test started)"
-            echo "- journal.txt (if available)"
+            script {
+                echo "========================================="
+                echo "⚠️  COSA Kola Test ABORTED on ppc64le"
+                echo "========================================="
+                echo "Partial logs have been captured in artifacts"
+                echo "Check archived artifacts for what was generated:"
+                echo "- kola-test-output.log (partial)"
+                echo "- console.txt (if test started)"
+                echo "- journal.txt (if available)"
+                
+                // Get console log
+                def consoleLog = ""
+                try {
+                    def consoleFile = "${WORKSPACE_DIR}/test-results/console.txt"
+                    if (fileExists(consoleFile)) {
+                        consoleLog = sh(
+                            script: "tail -20 ${consoleFile}",
+                            returnStdout: true
+                        ).trim()
+                    } else {
+                        consoleLog = "Console log not found (VM may not have started)"
+                    }
+                } catch (Exception e) {
+                    consoleLog = "Error reading console log: ${e.message}"
+                }
+                
+                def slackMessage = """
+:warning: *COSA Kola Test ABORTED on ppc64le*
+
+*Build*: #${BUILD_NUMBER}
+*Test*: ${params.KOLA_TEST}
+*Stream/Branch*: ${params.FEDORA_COREOS_CONFIG_BRANCH}
+*Build Version*: ${params.BUILD_VERSION ?: 'latest'}
+*Job*: ${env.JOB_NAME}
+*URL*: ${env.BUILD_URL}
+
+*Reason*: Build was manually aborted or timed out
+
+*Last 20 lines of console log (if available):*
+```
+${consoleLog}
+```
+
+Partial logs: ${env.BUILD_URL}artifact/
+"""
+                
+                slackSend(
+                    channel: '#fedora-coreos-ci-tests',
+                    color: 'warning',
+                    message: slackMessage,
+                    //tokenCredentialId: 'slack-token'
+                )
+            }
         }
         cleanup {
             cleanWs()
