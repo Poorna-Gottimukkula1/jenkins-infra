@@ -1019,28 +1019,43 @@ EOF
                         cp kola-test-output.log test-results/ 2>/dev/null || true
                     fi
                     
-                    # Find all test directories (handles multiply with patterns like ext.config.rpm-ostree.kernel-replace0, kernel-replace1, etc.)
-                    TEST_DIRS=\$(find tmp/kola/ -maxdepth 1 -type d -name "${params.KOLA_TEST}*" 2>/dev/null)
-                    
-                    if [ -n "\$TEST_DIRS" ]; then
-                        echo "Found test directories:"
-                        echo "\$TEST_DIRS"
+                    # Only look for kola test directories if kola tests were run
+                    if [ "${params.RUN_KOLA_TESTS}" = "true" ]; then
+                        # Find all test directories (handles multiply with patterns like ext.config.rpm-ostree.kernel-replace0, kernel-replace1, etc.)
+                        TEST_DIRS=\$(find tmp/kola/ -maxdepth 1 -type d -name "${params.KOLA_TEST}*" 2>/dev/null || true)
                         
-                        # Process each test directory
-                        for TEST_DIR in \$TEST_DIRS; do
-                            TEST_NAME=\$(basename "\$TEST_DIR")
-                            echo "Processing: \$TEST_NAME"
+                        if [ -n "\$TEST_DIRS" ]; then
+                            echo "Found test directories:"
+                            echo "\$TEST_DIRS"
                             
-                            # Find UUID directory within each test directory
-                            UUID_DIR=\$(find "\$TEST_DIR" -maxdepth 1 -type d -name "*-*-*-*-*" 2>/dev/null | head -1)
-                            
-                            if [ -n "\$UUID_DIR" ]; then
-                                # Create subdirectory for this test run
-                                mkdir -p "test-results/\$TEST_NAME"
-                                cp -r "\$UUID_DIR"/* "test-results/\$TEST_NAME/" 2>/dev/null || true
-                                echo "  Copied files from \$UUID_DIR"
-                            fi
-                        done
+                            # Process each test directory
+                            for TEST_DIR in \$TEST_DIRS; do
+                                TEST_NAME=\$(basename "\$TEST_DIR")
+                                echo "Processing: \$TEST_NAME"
+                                
+                                # Find UUID directory within each test directory
+                                UUID_DIR=\$(find "\$TEST_DIR" -maxdepth 1 -type d -name "*-*-*-*-*" 2>/dev/null | head -1)
+                                
+                                if [ -n "\$UUID_DIR" ]; then
+                                    # Create subdirectory for this test run
+                                    mkdir -p "test-results/\$TEST_NAME"
+                                    cp -r "\$UUID_DIR"/* "test-results/\$TEST_NAME/" 2>/dev/null || true
+                                    echo "  Copied files from \$UUID_DIR"
+                                fi
+                            done
+                        fi
+                    fi
+                    
+                    # Collect upgrade test results if upgrade tests were run
+                    if [ "${params.RUN_UPGRADE_TESTS}" = "true" ] && [ -d tmp/kola-upgrade ]; then
+                        echo "Collecting upgrade test results..."
+                        cp -r tmp/kola-upgrade/* test-results/ 2>/dev/null || true
+                    fi
+                    
+                    # Collect extended upgrade test results if extended upgrade tests were run
+                    if [ "${params.RUN_EXTENDED_UPGRADE_TESTS}" = "true" ]; then
+                        echo "Collecting extended upgrade test results..."
+                        find tmp/kola/ -maxdepth 2 -type d -name "*-*-*-*-*" -exec cp -r {} test-results/ \\; 2>/dev/null || true
                     fi
                     
                     # Also copy any loose log files
