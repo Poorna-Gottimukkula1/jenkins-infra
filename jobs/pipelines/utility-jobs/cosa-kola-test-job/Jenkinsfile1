@@ -894,7 +894,7 @@ EOF
                     def consoleFile = "${WORKSPACE_DIR}/test-results/console.txt"
                     if (fileExists(consoleFile)) {
                         consoleLog = sh(
-                            script: "tail -20 ${consoleFile}",
+                            script: "tail -20 ${consoleFile} | sed 's/\\x1b\\[[0-9;]*m//g' | sed 's/\\x1b\\[?[0-9;]*[a-zA-Z]//g'",
                             returnStdout: true
                         ).trim()
                     } else {
@@ -909,7 +909,7 @@ EOF
                         
                         if (originalConsole) {
                             consoleLog = sh(
-                                script: "tail -20 ${WORKSPACE_DIR}/${originalConsole}",
+                                script: "tail -20 ${WORKSPACE_DIR}/${originalConsole} | sed 's/\\x1b\\[[0-9;]*m//g' | sed 's/\\x1b\\[?[0-9;]*[a-zA-Z]//g'",
                                 returnStdout: true
                             ).trim()
                         } else {
@@ -970,7 +970,7 @@ Full logs: ${env.BUILD_URL}artifact/
                     def consoleFile = "${WORKSPACE_DIR}/test-results/console.txt"
                     if (fileExists(consoleFile)) {
                         consoleLog = sh(
-                            script: "tail -30 ${consoleFile}",
+                            script: "tail -30 ${consoleFile} | sed 's/\\x1b\\[[0-9;]*m//g' | sed 's/\\x1b\\[?[0-9;]*[a-zA-Z]//g'",
                             returnStdout: true
                         ).trim()
                     } else {
@@ -985,7 +985,7 @@ Full logs: ${env.BUILD_URL}artifact/
                         
                         if (originalConsole) {
                             consoleLog = sh(
-                                script: "tail -30 ${WORKSPACE_DIR}/${originalConsole}",
+                                script: "tail -30 ${WORKSPACE_DIR}/${originalConsole} | sed 's/\\x1b\\[[0-9;]*m//g' | sed 's/\\x1b\\[?[0-9;]*[a-zA-Z]//g'",
                                 returnStdout: true
                             ).trim()
                         } else {
@@ -1047,7 +1047,7 @@ Full logs: ${env.BUILD_URL}artifact/
                     def consoleFile = "${WORKSPACE_DIR}/test-results/console.txt"
                     if (fileExists(consoleFile)) {
                         consoleLog = sh(
-                            script: "tail -30 ${consoleFile}",
+                            script: "tail -30 ${consoleFile} | sed 's/\\x1b\\[[0-9;]*m//g' | sed 's/\\x1b\\[?[0-9;]*[a-zA-Z]//g'",
                             returnStdout: true
                         ).trim()
                     } else {
@@ -1062,7 +1062,7 @@ Full logs: ${env.BUILD_URL}artifact/
                         
                         if (originalConsole) {
                             consoleLog = sh(
-                                script: "tail -30 ${WORKSPACE_DIR}/${originalConsole}",
+                                script: "tail -30 ${WORKSPACE_DIR}/${originalConsole} | sed 's/\\x1b\\[[0-9;]*m//g' | sed 's/\\x1b\\[?[0-9;]*[a-zA-Z]//g'",
                                 returnStdout: true
                             ).trim()
                         } else {
