@@ -388,32 +388,43 @@ EOF
                             # Wait a bit for test to start and create console log
                             sleep 10
                             
-                            # Find console log files (may be multiple if using --multiply)
-                            CONSOLE_LOGS=\$(find tmp/kola/ -name "console.txt" -type f 2>/dev/null)
-                            
-                            if [ -n "\$CONSOLE_LOGS" ]; then
+                            # Check if running multiple tests in parallel
+                            if [ "${params.MULTIPLY}" != "1" ]; then
                                 echo "========================================="
-                                echo "Console log(s) found:"
-                                echo "\$CONSOLE_LOGS"
-                                echo "Tailing first console output..."
+                                echo "Running ${params.MULTIPLY} tests in parallel (${params.PARALLEL})"
+                                echo "Console tailing disabled for parallel runs"
+                                echo "All console logs will be captured in artifacts"
+                                echo "Monitor kola-test-output.log for progress"
                                 echo "========================================="
                                 
-                                # Tail first console log in background
-                                FIRST_LOG=\$(echo "\$CONSOLE_LOGS" | head -1)
-                                tail -f "\$FIRST_LOG" 2>/dev/null &
-                                TAIL_PID=\$!
-                                
-                                # Wait for kola test to complete
+                                # Just wait for completion, no tailing
                                 wait \$KOLA_PID
-                                KOLA_EXIT=\$?
-                                
-                                # Stop tailing
-                                kill \$TAIL_PID 2>/dev/null || true
-                                
-                                exit \$KOLA_EXIT
                             else
-                                echo "⚠️  Console log not found, waiting for test completion..."
-                                wait \$KOLA_PID
+                                # Single test - tail the console log
+                                CONSOLE_LOG=\$(find tmp/kola/ -name "console.txt" -type f 2>/dev/null | head -1)
+                                
+                                if [ -n "\$CONSOLE_LOG" ]; then
+                                    echo "========================================="
+                                    echo "Console log found: \$CONSOLE_LOG"
+                                    echo "Tailing console output..."
+                                    echo "========================================="
+                                    
+                                    # Tail console log in background
+                                    tail -f "\$CONSOLE_LOG" 2>/dev/null &
+                                    TAIL_PID=\$!
+                                    
+                                    # Wait for kola test to complete
+                                    wait \$KOLA_PID
+                                    KOLA_EXIT=\$?
+                                    
+                                    # Stop tailing
+                                    kill \$TAIL_PID 2>/dev/null || true
+                                    
+                                    exit \$KOLA_EXIT
+                                else
+                                    echo "⚠️  Console log not found, waiting for test completion..."
+                                    wait \$KOLA_PID
+                                fi
                             fi
                         """
                     } else {
