@@ -334,7 +334,48 @@ EOF
                         
                         echo "✅ Artifact fetched and decompressed"
                         ls -lh builds/
+                        
+                        # Extract the actual build ID from builds.json
+                        if [ -f builds/builds.json ]; then
+                            ACTUAL_BUILD_ID=\$(jq -r '.builds[0].id' builds/builds.json)
+                            echo "Actual Build ID: \$ACTUAL_BUILD_ID"
+                            echo "\$ACTUAL_BUILD_ID" > actual-build-id.txt
+                        fi
                     """
+                }
+            }
+        }
+        
+        stage('Set Build Description') {
+            steps {
+                script {
+                    echo "=== Setting Build Description ==="
+                    
+                    // Read the actual build ID if it exists
+                    def actualBuildId = ""
+                    if (fileExists("${WORKSPACE_DIR}/actual-build-id.txt")) {
+                        actualBuildId = readFile("${WORKSPACE_DIR}/actual-build-id.txt").trim()
+                    }
+                    
+                    // Determine what to show in description
+                    def buildInfo = params.BUILD_VERSION ?: actualBuildId ?: "latest"
+                    def testInfo = []
+                    if (params.RUN_KOLA_TESTS) {
+                        testInfo.add("Kola: ${params.KOLA_TEST}")
+                    }
+                    if (params.RUN_UPGRADE_TESTS) {
+                        testInfo.add("Upgrade")
+                    }
+                    
+                    def description = """
+                    <b>Build:</b> ${buildInfo}<br/>
+                    <b>Mode:</b> ${params.BUILD_MODE}<br/>
+                    <b>Tests:</b> ${testInfo.join(', ')}<br/>
+                    <b>Branch:</b> ${params.FEDORA_COREOS_CONFIG_BRANCH}
+                    """.stripIndent().trim()
+                    
+                    currentBuild.description = description
+                    echo "Build description set: ${description}"
                 }
             }
         }
@@ -404,6 +445,13 @@ EOF
                         
                         echo "✅ Build completed successfully"
                         ls -lh builds/
+                        
+                        # Extract the actual build ID from builds.json
+                        if [ -f builds/builds.json ]; then
+                            ACTUAL_BUILD_ID=\$(jq -r '.builds[0].id' builds/builds.json)
+                            echo "Actual Build ID: \$ACTUAL_BUILD_ID"
+                            echo "\$ACTUAL_BUILD_ID" > actual-build-id.txt
+                        fi
                     """
                 }
             }
