@@ -272,11 +272,13 @@ EOF
 
 ## Recommended Fix Implementation
 
-### Primary Fix: Rebuild Initramfs
+### ✅ FIX IMPLEMENTED
 
 **File**: `fedora-coreos-config/tests/kola/rpm-ostree/kernel-replace`
 
-**Change in `build_derived_image()` function** (around line 187):
+**Status**: **IMPLEMENTED** - The fix has been added to the test file
+
+**Change in `build_derived_image()` function** (lines 187-206):
 
 ```bash
 echo "--- Creating Containerfile ---"
@@ -287,13 +289,13 @@ FROM $baseimage
 # there are no repo files (i.e. like on RHCOS) then it succeeds anyway.
 RUN ls /etc/yum.repos.d/*.repo 2>/dev/null | xargs --no-run-if-empty sed -i s/enabled=1/enabled=0/
 
-# Replace kernel RPMs
+# Replace kernel and rebuild initramfs in a single RUN to avoid duplication
+# CRITICAL: Initramfs rebuild fixes BTF validation errors on ppc64le (and other architectures)
+# This ensures modules are regenerated with proper BTF metadata, fixing issues when
+# replacing kernels from RC builds or older kernels with unsorted/incompatible BTF.
+# See: https://github.com/coreos/fedora-coreos-tracker/issues/2115
 RUN rpm-ostree override replace /tmp/buildcontext/*rpm && \
-    rpm-ostree cleanup -m
-
-# CRITICAL FIX: Rebuild initramfs with new kernel modules
-# This ensures BTF information matches between kernel and modules
-RUN rpm-ostree initramfs --enable --arg=--rebuild && \
+    rpm-ostree initramfs --enable --arg=--rebuild && \
     rpm-ostree cleanup -m && \
     ostree container commit
 EOF
