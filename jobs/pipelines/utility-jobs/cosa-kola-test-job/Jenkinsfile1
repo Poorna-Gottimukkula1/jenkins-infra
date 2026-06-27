@@ -367,6 +367,9 @@ EOF
                             echo "Additional args: ${kolaArgs}"
                             echo ""
                             
+                            # Enable pipefail to capture exit code from cosa kola run, not tee
+                            set -o pipefail
+                            
                             # Run test and capture output
                             cosa kola run '${params.KOLA_TEST}' \\
                                 ${debugFlag} \\
@@ -421,7 +424,7 @@ EOF
                                     KOLA_EXIT=\$?
                                 fi
                             fi
-                            echo "Kola test with exit code: \$KOLA_EXIT"
+                            echo "Kola test completed with exit code: \$KOLA_EXIT"
                             # Check exit code and fail if test failed
                             if [ \$KOLA_EXIT -ne 0 ]; then
                                 echo "❌ Kola test FAILED with exit code: \$KOLA_EXIT"
@@ -480,6 +483,9 @@ EOF
                                 echo "Parallel: ${params.PARALLEL}"
                             fi
                             
+                            # Enable pipefail to capture exit code from cosa kola run, not tee
+                            set -o pipefail
+                            
                             cosa kola run '${params.KOLA_TEST}' \\
                                 ${debugFlag} \\
                                 --qemu-memory ${params.QEMU_MEMORY} \\
@@ -490,7 +496,7 @@ EOF
                                 2>&1 | tee kola-test-output.log
                             
                             KOLA_EXIT=\$?
-                            echo "Kola test with exit code: \$KOLA_EXIT"
+                            echo "Kola test completed with exit code: \$KOLA_EXIT"
                             if [ \$KOLA_EXIT -ne 0 ]; then
                                 echo "❌ Kola test FAILED with exit code: \$KOLA_EXIT"
                                 exit \$KOLA_EXIT
