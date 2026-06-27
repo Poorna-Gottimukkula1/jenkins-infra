@@ -26,6 +26,11 @@ pipeline {
             description: 'COSA container image to use'
         )
         string(
+            name: 'BUILD_VERSION',
+            defaultValue: '',
+            description: 'Specific build version to test (e.g., 42.20250205.91.0). Leave empty to fetch latest from stream.'
+        )
+        string(
             name: 'FEDORA_COREOS_CONFIG_BRANCH',
             defaultValue: 'rawhide',
             description: 'Branch of fedora-coreos-config to use'
@@ -214,6 +219,7 @@ EOF
                     echo "=== Fetching Pre-built Artifact for ppc64le ==="
                     
                     def forceFlag = params.FORCE_BUILDFETCH ? '--force' : ''
+                    def buildFlag = params.BUILD_VERSION ? "--build=${params.BUILD_VERSION}" : "--stream=${params.STREAM}"
                     
                     sh """
                         cd ${WORKSPACE_DIR}
@@ -256,11 +262,23 @@ EOF
                         export COREOS_ASSEMBLER_CONTAINER="${params.COSA_CONTAINER}"
                         
                         echo "Using container name: ${COSA_CONTAINER_NAME}"
-                        echo "Fetching ${params.STREAM} stream artifact for ppc64le..."
-                        cosa buildfetch ${forceFlag} \\
-                            --stream=${params.STREAM} \\
-                            --arch=ppc64le \\
-                            --artifact=qemu
+                        
+                        if [ -n "${params.BUILD_VERSION}" ]; then
+                            echo "Fetching specific build: ${params.BUILD_VERSION} for ppc64le..."
+                            echo "Note: Stream parameter (${params.STREAM}) is ignored when BUILD_VERSION is specified"
+                        else
+                            echo "Fetching latest build from ${params.STREAM} stream for ppc64le..."
+                        fi
+                        
+                        # First fetch without artifact to get the build
+                        cosa buildfetch ${forceFlag} ${buildFlag} --arch=ppc64le
+                        
+                        # Then fetch the qemu artifact specifically
+                        if [ -n "${params.BUILD_VERSION}" ]; then
+                            cosa buildfetch --build=${params.BUILD_VERSION} --artifact=qemu
+                        else
+                            cosa buildfetch --stream=${params.STREAM} --artifact=qemu
+                        fi
                         
                         echo "Decompressing artifact..."
                         cosa decompress
@@ -467,6 +485,7 @@ COSA Kola Test Summary - ppc64le
 Build Number: ${BUILD_NUMBER}
 Architecture: ppc64le (fixed)
 Stream: ${params.STREAM}
+Build Version: ${params.BUILD_VERSION:-latest from stream}
 Test: ${params.KOLA_TEST}
 COSA Container: ${params.COSA_CONTAINER}
 Config Branch: ${params.FEDORA_COREOS_CONFIG_BRANCH}
