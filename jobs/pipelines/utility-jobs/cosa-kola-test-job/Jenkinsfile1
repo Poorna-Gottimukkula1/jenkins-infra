@@ -7,14 +7,34 @@ pipeline {
     
     parameters {
         choice(
+            name: 'BUILD_MODE',
+            choices: ['fetch', 'build'],
+            description: 'fetch: Download pre-built artifacts | build: Build from scratch'
+        )
+        string(
+            name: 'FEDORA_COREOS_CONFIG_REPO',
+            defaultValue: 'https://github.com/coreos/fedora-coreos-config',
+            description: 'Fedora CoreOS config repository URL'
+        )
+        choice(
             name: 'FEDORA_COREOS_CONFIG_BRANCH',
-            choices: ['rawhide', 'stable', 'testing', 'next'],
-            description: 'Fedora CoreOS config branch and stream to test'
+            choices: ['rawhide', 'testing-devel', 'stable', 'testing', 'next', 'next-devel'],
+            description: 'Fedora CoreOS config branch and stream'
+        )
+        booleanParam(
+            name: 'RUN_KOLA_TESTS',
+            defaultValue: true,
+            description: 'Run regular kola tests'
         )
         string(
             name: 'KOLA_TEST',
             defaultValue: 'ext.config.rpm-ostree.kernel-replace',
-            description: 'Kola test to run (e.g., ext.config.rpm-ostree.kernel-replace, basic, or "all" for all tests)'
+            description: 'Kola test to run (e.g., ext.config.rpm-ostree.kernel-replace, basic, or "all"). Only used if RUN_KOLA_TESTS is enabled.'
+        )
+        booleanParam(
+            name: 'RUN_UPGRADE_TESTS',
+            defaultValue: false,
+            description: 'Run upgrade tests with cosa kola run-upgrade --build=BUILD_VERSION (or latest if empty). Automatically determines upgrade path.'
         )
         choice(
             name: 'COSA_CONTAINER',
@@ -28,7 +48,7 @@ pipeline {
         string(
             name: 'BUILD_VERSION',
             defaultValue: '',
-            description: 'Specific build version to test (e.g., 42.20250205.91.0). Leave empty to fetch latest from stream.'
+            description: 'Build version for fetch mode, single kola test, upgrade tests, or build ID for build mode. Leave empty for latest/auto.'
         )
         string(
             name: 'QEMU_MEMORY',
@@ -43,7 +63,7 @@ pipeline {
         booleanParam(
             name: 'FORCE_BUILDFETCH',
             defaultValue: true,
-            description: 'Force fetch of latest artifact even if cached'
+            description: 'Force fetch of latest artifact even if cached (fetch mode only)'
         )
         booleanParam(
             name: 'TAIL_CONSOLE_LOG',
@@ -64,6 +84,11 @@ pipeline {
             name: 'ADDITIONAL_KOLA_ARGS',
             defaultValue: '',
             description: 'Additional arguments to pass to kola run (e.g., --qemu-firmware uefi)'
+        )
+        text(
+            name: 'ADDITIONAL_UPGRADE_ARGS',
+            defaultValue: '--rerun --allow-rerun-success=tags=needs-internet --on-warn-failure-exit-77',
+            description: 'Additional arguments to pass to kola run-upgrade'
         )
     }
     
@@ -505,6 +530,87 @@ EOF
                     }
                     
                     echo "✅ Kola test completed successfully"
+                }
+            }
+        }
+        
+        stage('Run Upgrade Tests') {
+            when {
+                expression { params.RUN_UPGRADE_TESTS == true }
+            }
+            steps {
+                script {
+                    echo "========================================="
+                    echo "=== Running Upgrade Tests on ppc64le ==="
+                    echo "========================================="
+                    
+                    def additionalUpgradeArgs = params.ADDITIONAL_UPGRADE_ARGS ?: ''
+                    def buildVersion = params.BUILD_VERSION ?: 'latest'
+                    
+                    sh """
+                        cd ${WORKSPACE_DIR}
+                        
+                        # Override cosa function to use unique container name
+                        cosa() {
+                            env | grep COREOS_ASSEMBLER
+                            local -r COREOS_ASSEMBLER_CONTAINER_LATEST="quay.io/coreos-assembler/coreos-assembler:latest"
+                            
+                            if [[ -z \${COREOS_ASSEMBLER_CONTAINER} ]] && podman image exists \${COREOS_ASSEMBLER_CONTAINER_LATEST}; then
+                                local -r cosa_build_date_str="\$(podman inspect -f "{{.Created}}" \${COREOS_ASSEMBLER_CONTAINER_LATEST} | awk '{print \$1}')"
+                                local -r cosa_build_date="\$(date -d \${cosa_build_date_str} +%s)"
+                                
+                                if [[ \$(date +%s) -ge \$((cosa_build_date + 60*60*24*7)) ]]; then
+                                    echo -e "\\e[0;33m----" >&2
+                                    echo "The COSA container image is more than a week old and likely outdated." >&2
+                                    echo "You should pull the latest version with:" >&2
+                                    echo "podman pull \${COREOS_ASSEMBLER_CONTAINER_LATEST}" >&2
+                                    echo -e "----\\e[0m" >&2
+                                    sleep 10
+                                fi
+                            fi
+                            
+                            set -x
+                            podman run --rm -ti --security-opt=label=disable --privileged \\
+                                --userns=keep-id:uid=1000,gid=1000 \\
+                                -v=\${PWD}:/srv/ --device=/dev/kvm --device=/dev/fuse \\
+                                --tmpfs=/tmp -v=/var/tmp:/var/tmp --name=${COSA_CONTAINER_NAME} \\
+                                \${COREOS_ASSEMBLER_CONFIG_GIT:+-v=\$COREOS_ASSEMBLER_CONFIG_GIT:/srv/src/config/:ro} \\
+                                \${COREOS_ASSEMBLER_GIT:+-v=\$COREOS_ASSEMBLER_GIT/src/:/usr/lib/coreos-assembler/:ro} \\
+                                \${COREOS_ASSEMBLER_ADD_CERTS:+-v=/etc/pki/ca-trust:/etc/pki/ca-trust:ro} \\
+                                \${COREOS_ASSEMBLER_CONTAINER_RUNTIME_ARGS} \\
+                                \${COREOS_ASSEMBLER_CONTAINER:-\$COREOS_ASSEMBLER_CONTAINER_LATEST} "\$@"
+                            rc=\$?
+                            set +x
+                            return \$rc
+                        }
+                        
+                        # Set COREOS_ASSEMBLER_CONTAINER environment variable
+                        export COREOS_ASSEMBLER_CONTAINER="${params.COSA_CONTAINER}"
+                        
+                        echo "Using container name: ${COSA_CONTAINER_NAME}"
+                        echo "Running upgrade tests from build: ${buildVersion}"
+                        
+                        # Enable pipefail to capture exit code from cosa kola run-upgrade, not tee
+                        set -o pipefail
+                        
+                        cosa kola run-upgrade \\
+                            --build=${buildVersion} \\
+                            --output-dir=\${PWD}/tmp/kola-upgrade \\
+                            --arch=ppc64le \\
+                            --upgrades \\
+                            ${additionalUpgradeArgs} \\
+                            2>&1 | tee kola-upgrade-output.log
+                        
+                        UPGRADE_EXIT=\$?
+                        echo "Upgrade test completed with exit code: \$UPGRADE_EXIT"
+                        
+                        if [ \$UPGRADE_EXIT -ne 0 ]; then
+                            echo "❌ Upgrade test FAILED with exit code: \$UPGRADE_EXIT"
+                            exit \$UPGRADE_EXIT
+                        fi
+                        
+                        echo "✅ Upgrade test completed successfully"
+                    """
                 }
             }
         }
