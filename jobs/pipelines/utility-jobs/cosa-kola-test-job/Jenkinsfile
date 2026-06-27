@@ -463,10 +463,26 @@ EOF
                             cp kola-test-output.log test-results/
                         fi
                         
-                        # Copy console logs
-                        if [ -d tmp/kola/${params.KOLA_TEST} ]; then
-                            find tmp/kola/${params.KOLA_TEST}/ -name "console.txt" -type f -exec cp {} test-results/ \\;
-                            find tmp/kola/${params.KOLA_TEST}/ -name "journal.txt" -type f -exec cp {} test-results/ \\;
+                        # Find the test UUID directory
+                        TEST_UUID_DIR=\$(find tmp/kola/${params.KOLA_TEST}/ -maxdepth 1 -type d -name "*-*-*-*-*" 2>/dev/null | head -1)
+                        
+                        if [ -n "\$TEST_UUID_DIR" ]; then
+                            echo "Found test directory: \$TEST_UUID_DIR"
+                            
+                            # Copy ALL files from the UUID directory
+                            echo "Copying all files from test directory..."
+                            cp -r "\$TEST_UUID_DIR"/* test-results/ 2>/dev/null || true
+                            
+                            # List what we captured
+                            echo "Captured files:"
+                            ls -lh test-results/
+                        else
+                            echo "⚠️  Test UUID directory not found, collecting what we can..."
+                            
+                            # Fallback: copy specific files if UUID dir not found
+                            if [ -d tmp/kola/${params.KOLA_TEST} ]; then
+                                find tmp/kola/${params.KOLA_TEST}/ -type f -exec cp {} test-results/ \\; 2>/dev/null || true
+                            fi
                         fi
                         
                         # Copy denylist backup
@@ -474,8 +490,8 @@ EOF
                             cp src/config/kola-denylist.yaml.backup test-results/
                         fi
                         
-                        # Copy any crash dumps or diagnostic files
-                        find tmp/kola/ -name "*.log" -type f -exec cp {} test-results/ \\; 2>/dev/null || true
+                        # Copy any additional crash dumps or diagnostic files from parent kola dir
+                        find tmp/kola/ -maxdepth 2 -name "*.log" -type f -exec cp {} test-results/ \\; 2>/dev/null || true
                         
                         # Create summary
                         cat > test-results/test-summary.txt << EOF
@@ -493,11 +509,17 @@ Memory: ${params.QEMU_MEMORY}MB
 Disk: ${params.QEMU_DISK}GB
 Debug Mode: ${params.DEBUG_MODE}
 Denylist: Completely cleared
+Test UUID Directory: \${TEST_UUID_DIR:-Not found}
 Timestamp: \$(date)
 ========================================
+
+Captured Files:
 EOF
+                        ls -lh test-results/ >> test-results/test-summary.txt
                         
-                        echo "Test results collected in test-results/"
+                        echo ""
+                        echo "✅ Test results collected in test-results/"
+                        echo "Files captured:"
                         ls -lh test-results/
                     """
                 }
