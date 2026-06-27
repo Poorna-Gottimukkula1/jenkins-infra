@@ -261,22 +261,29 @@ EOF
                         if [ -n "${params.BUILD_VERSION}" ]; then
                             echo "Fetching specific build: ${params.BUILD_VERSION} for ppc64le..."
                             echo "Note: Stream parameter (${params.STREAM}) is ignored when BUILD_VERSION is specified"
+                            
+                            # Fetch the specific build
+                            cosa buildfetch ${forceFlag} --build=${params.BUILD_VERSION} --arch=ppc64le
+                            
+                            # Fetch the qemu artifact for the specific build
+                            cosa buildfetch --build=${params.BUILD_VERSION} --artifact=qemu
+                            
+                            # Decompress the specific build
+                            echo "Decompressing artifact for build ${params.BUILD_VERSION}..."
+                            cosa decompress --build ${params.BUILD_VERSION}
                         else
                             echo "Fetching latest build from ${params.STREAM} stream for ppc64le..."
-                        fi
-                        
-                        # First fetch without artifact to get the build
-                        cosa buildfetch ${forceFlag} ${buildFlag} --arch=ppc64le
-                        
-                        # Then fetch the qemu artifact specifically
-                        if [ -n "${params.BUILD_VERSION}" ]; then
-                            cosa buildfetch --build=${params.BUILD_VERSION} --artifact=qemu
-                        else
+                            
+                            # Fetch the latest from stream
+                            cosa buildfetch ${forceFlag} --stream=${params.STREAM} --arch=ppc64le
+                            
+                            # Fetch the qemu artifact from stream
                             cosa buildfetch --stream=${params.STREAM} --artifact=qemu
+                            
+                            # Decompress (will use latest)
+                            echo "Decompressing artifact..."
+                            cosa decompress
                         fi
-                        
-                        echo "Decompressing artifact..."
-                        cosa decompress
                         
                         echo "✅ Artifact fetched and decompressed"
                         ls -lh builds/
