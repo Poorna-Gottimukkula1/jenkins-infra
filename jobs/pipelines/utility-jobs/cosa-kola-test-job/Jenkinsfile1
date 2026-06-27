@@ -415,8 +415,6 @@ EOF
                                     
                                     # Stop tailing
                                     kill \$TAIL_PID 2>/dev/null || true
-                                    
-                                    exit \$KOLA_EXIT
                                 else
                                     echo "⚠️  Console log not found, waiting for test completion..."
                                     wait \$KOLA_PID
