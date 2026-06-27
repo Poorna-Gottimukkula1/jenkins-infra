@@ -925,6 +925,28 @@ EOF
                             fi
                         fi
                         
+                        # Find and copy extended upgrade test UUID directories (if extended upgrade tests were run)
+                        if [ "${params.RUN_EXTENDED_UPGRADE_TESTS}" = "true" ]; then
+                            echo "Looking for extended upgrade test results..."
+                            # Extended upgrade tests use the --tag extended-upgrade which creates results in tmp/kola/
+                            EXTENDED_UUID_DIRS=\$(find tmp/kola/ -maxdepth 2 -type d -name "*-*-*-*-*" 2>/dev/null | grep -v "${params.KOLA_TEST}" || true)
+                            if [ -n "\$EXTENDED_UUID_DIRS" ]; then
+                                echo "Found extended upgrade test UUID directories"
+                                for dir in \$EXTENDED_UUID_DIRS; do
+                                    echo "Copying from extended upgrade test: \$dir"
+                                    # Copy console.txt and other important files
+                                    if [ -f "\$dir/console.txt" ]; then
+                                        cp "\$dir/console.txt" test-results/extended-upgrade-console.txt 2>/dev/null || true
+                                    fi
+                                    if [ -f "\$dir/journal.txt" ]; then
+                                        cp "\$dir/journal.txt" test-results/extended-upgrade-journal.txt 2>/dev/null || true
+                                    fi
+                                    # Copy all files from the directory
+                                    cp -r "\$dir"/* test-results/ 2>/dev/null || true
+                                done
+                            fi
+                        fi
+                        
                         # Copy denylist backup
                         if [ -f src/config/kola-denylist.yaml.backup ]; then
                             cp src/config/kola-denylist.yaml.backup test-results/
