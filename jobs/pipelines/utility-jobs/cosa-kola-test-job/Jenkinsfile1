@@ -685,7 +685,6 @@ EOF
                         
                         cosa kola run-upgrade \\
                             --build=${buildVersion} \\
-                            --output-dir=\${PWD}/tmp/kola-upgrade \\
                             --arch=ppc64le \\
                             --upgrades \\
                             ${additionalUpgradeArgs} \\
@@ -728,28 +727,41 @@ EOF
                         # Copy upgrade test results
                         if [ -d tmp/kola-upgrade ]; then
                             echo "Copying upgrade test results..."
-                            cp -r tmp/kola-upgrade/* test-results/ 2>/dev/null || true
+                            # Find UUID directories in upgrade test results
+                            UPGRADE_UUID_DIRS=\$(find tmp/kola-upgrade/ -maxdepth 1 -type d -name "*-*-*-*-*" 2>/dev/null)
+                            if [ -n "\$UPGRADE_UUID_DIRS" ]; then
+                                echo "Found upgrade test UUID directories"
+                                for dir in \$UPGRADE_UUID_DIRS; do
+                                    echo "Copying from: \$dir"
+                                    cp -r "\$dir"/* test-results/ 2>/dev/null || true
+                                done
+                            else
+                                # Fallback: copy everything from kola-upgrade
+                                cp -r tmp/kola-upgrade/* test-results/ 2>/dev/null || true
+                            fi
                         fi
                         
-                        # Find the test UUID directory
-                        TEST_UUID_DIR=\$(find tmp/kola/${params.KOLA_TEST}/ -maxdepth 1 -type d -name "*-*-*-*-*" 2>/dev/null | head -1)
-                        
-                        if [ -n "\$TEST_UUID_DIR" ]; then
-                            echo "Found test directory: \$TEST_UUID_DIR"
+                        # Find the regular kola test UUID directory (if kola tests were run)
+                        if [ "${params.RUN_KOLA_TESTS}" = "true" ]; then
+                            TEST_UUID_DIR=\$(find tmp/kola/${params.KOLA_TEST}/ -maxdepth 1 -type d -name "*-*-*-*-*" 2>/dev/null | head -1)
                             
-                            # Copy ALL files from the UUID directory
-                            echo "Copying all files from test directory..."
-                            cp -r "\$TEST_UUID_DIR"/* test-results/ 2>/dev/null || true
-                            
-                            # List what we captured
-                            echo "Captured files:"
-                            ls -lh test-results/
-                        else
-                            echo "⚠️  Test UUID directory not found, collecting what we can..."
-                            
-                            # Fallback: copy specific files if UUID dir not found
-                            if [ -d tmp/kola/${params.KOLA_TEST} ]; then
-                                find tmp/kola/${params.KOLA_TEST}/ -type f -exec cp {} test-results/ \\; 2>/dev/null || true
+                            if [ -n "\$TEST_UUID_DIR" ]; then
+                                echo "Found kola test directory: \$TEST_UUID_DIR"
+                                
+                                # Copy ALL files from the UUID directory
+                                echo "Copying all files from kola test directory..."
+                                cp -r "\$TEST_UUID_DIR"/* test-results/ 2>/dev/null || true
+                                
+                                # List what we captured
+                                echo "Captured files:"
+                                ls -lh test-results/
+                            else
+                                echo "⚠️  Kola test UUID directory not found, collecting what we can..."
+                                
+                                # Fallback: copy specific files if UUID dir not found
+                                if [ -d tmp/kola/${params.KOLA_TEST} ]; then
+                                    find tmp/kola/${params.KOLA_TEST}/ -type f -exec cp {} test-results/ \\; 2>/dev/null || true
+                                fi
                             fi
                         fi
                         
