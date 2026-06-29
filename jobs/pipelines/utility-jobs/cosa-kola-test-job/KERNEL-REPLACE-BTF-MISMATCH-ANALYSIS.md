@@ -5,13 +5,17 @@
 The `ext.config.rpm-ostree.kernel-replace` test exhibits **deterministic BTF failures** on ppc64le when the source kernel is `7.0.0-0.rc1.15.fc45`. The failure is **NOT intermittent** - it depends entirely on which kernel version is being replaced.
 
 **Test Results by Kernel Combination**:
-- ✅ **WORKS**: `6.20.0-0.rc0.260217g9702969978695.10.fc45` → `7.0.13-200.fc44` (NO BTF errors)
-- ❌ **FAILS**: `7.0.0-0.rc1.15.fc45` → `7.0.13-200.fc44` (BTF validation errors)
-- ❌ **FAILS**: `7.0.0-0.rc1.15.fc45` → `6.19.2-300.fc44` (BTF validation errors)
+- ❌ **FAILS**: `6.20.0-0.rc0.260217g9702969978695.10.fc45` → `7.0.13-200.fc44` (BTF validation errors → system powers off)
+- ❌ **FAILS**: `7.0.0-0.rc1.15.fc45` → `7.0.13-200.fc44` (BTF validation errors → system powers off)
+- ❌ **FAILS**: `7.0.0-0.rc1.15.fc45` → `6.19.2-300.fc44` (BTF validation errors → system powers off)
 
-**Root Cause**: Kernel `7.0.0-0.rc1.15.fc45` has **defective BTF metadata** in its modules. When these modules are loaded by ANY replacement kernel, BTF validation fails. This is a **kernel build bug** in 7.0.0-rc1, not an rpm-ostree or initramfs issue.
+**Root Cause**: Kernel **7.0.X series introduced BTF sorting requirements** that are incompatible with modules from older kernels. When upgrading TO kernel 7.0.X from ANY older kernel (6.20.0, 7.0.0-rc1, etc.), BTF validation fails because:
+1. **Kernel 7.0.X expects sorted BTF** metadata (introduced in commit 342bf525ba0d on Jan 9, 2026)
+2. **Older kernel modules have unsorted BTF** (built before this requirement)
+3. **Initramfs contains old modules** that fail BTF validation when loaded by new kernel 7.0.X
+4. **Critical modules fail to load** → dracut cannot continue → system powers off
 
-**Key Insight**: The "intermittent" behavior is actually **deterministic** - tests succeed when the base image has kernel 6.20.0, and fail when it has kernel 7.0.0-rc1.
+**Key Insight**: The issue affects **ALL upgrades TO kernel 7.0.X**, not just from 7.0.0-rc1. Even upgrading from stable kernel 6.20.0 → 7.0.13 fails with hundreds of BTF validation errors and system shutdown. The fix (explicit initramfs rebuild) is **required for any kernel replacement involving 7.0.X**.
 
 ## Test Flow and Failure Point
 
