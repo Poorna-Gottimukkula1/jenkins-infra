@@ -483,15 +483,19 @@ EOF
             }
         }
         
-        stage('Run Kola Test') {
-            when {
-                expression { params.RUN_KOLA_TESTS == true }
-            }
-            steps {
-                script {
-                    echo "========================================="
-                    echo "=== Running Kola Test on ppc64le ==="
-                    echo "========================================="
+        stage('Run All Tests in Parallel') {
+            failFast false  // Continue other tests even if one fails
+            parallel {
+                stage('Kola Test') {
+                    when {
+                        expression { params.RUN_KOLA_TESTS == true }
+                    }
+                    steps {
+                        script {
+                            catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                                echo "========================================="
+                                echo "=== Running Kola Test on ppc64le ==="
+                                echo "========================================="
                     
                     def debugFlag = params.DEBUG_MODE ? '--debug' : ''
                     def kolaArgs = params.ADDITIONAL_KOLA_ARGS ?: ''
@@ -693,20 +697,22 @@ EOF
                         """
                     }
                     
-                    echo "✅ Kola test completed successfully"
+                                echo "✅ Kola test completed successfully"
+                            }
+                        }
+                    }
                 }
-            }
-        }
-        
-        stage('Run Upgrade Tests') {
-            when {
-                expression { params.RUN_UPGRADE_TESTS == true }
-            }
-            steps {
-                script {
-                    echo "========================================="
-                    echo "=== Running Upgrade Tests on ppc64le ==="
-                    echo "========================================="
+                
+                stage('Upgrade Test') {
+                    when {
+                        expression { params.RUN_UPGRADE_TESTS == true }
+                    }
+                    steps {
+                        script {
+                            catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                                echo "========================================="
+                                echo "=== Running Upgrade Tests on ppc64le ==="
+                                echo "========================================="
                     
                     def additionalUpgradeArgs = params.ADDITIONAL_UPGRADE_ARGS ?: ''
                     def buildVersion = params.BUILD_VERSION ?: 'latest'
@@ -809,21 +815,23 @@ EOF
                             exit \$UPGRADE_EXIT
                         fi
                         
-                        echo "✅ Upgrade test completed successfully"
-                    """
+                                echo "✅ Upgrade test completed successfully"
+                            """
+                            }
+                        }
+                    }
                 }
-            }
-        }
-        
-        stage('Run Extended Upgrade Tests') {
-            when {
-                expression { params.RUN_EXTENDED_UPGRADE_TESTS == true }
-            }
-            steps {
-                script {
-                    echo "========================================="
-                    echo "=== Running Extended Upgrade Kola Tests ==="
-                    echo "========================================="
+                
+                stage('Extended Upgrade Test') {
+                    when {
+                        expression { params.RUN_EXTENDED_UPGRADE_TESTS == true }
+                    }
+                    steps {
+                        script {
+                            catchError(buildResult: 'FAILURE', stageResult: 'FAILURE') {
+                                echo "========================================="
+                                echo "=== Running Extended Upgrade Kola Tests ==="
+                                echo "========================================="
                     
                     def targetStream = params.TARGET_UPGRADE_STREAM
                     def buildVersion = params.BUILD_VERSION ?: 'latest'
@@ -907,8 +915,11 @@ EOF
                             exit \$EXTENDED_UPGRADE_EXIT
                         fi
                         
-                        echo "✅ Extended upgrade test completed successfully"
-                    """
+                                echo "✅ Extended upgrade test completed successfully"
+                            """
+                            }
+                        }
+                    }
                 }
             }
         }
