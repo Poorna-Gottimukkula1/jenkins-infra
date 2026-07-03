@@ -618,10 +618,16 @@ EOF
                                 fi
                             fi
                             echo "Kola test completed with exit code: \$KOLA_EXIT"
-                            # Check exit code and fail if test failed
+                            
+                            # Save test status for Slack notification
+                            mkdir -p test-results
+                            echo "\$KOLA_EXIT" > test-results/kola-test-exit-code.txt
+                            
+                            # Log failure but let catchError handle it
                             if [ \$KOLA_EXIT -ne 0 ]; then
                                 echo "❌ Kola test FAILED with exit code: \$KOLA_EXIT"
-                                exit \$KOLA_EXIT
+                                # Don't exit - let catchError handle the failure
+                                return \$KOLA_EXIT
                             fi
                         """
                     } else {
@@ -690,9 +696,16 @@ EOF
                             
                             KOLA_EXIT=\$?
                             echo "Kola test completed with exit code: \$KOLA_EXIT"
+                            
+                            # Save test status for Slack notification (already done above, but ensure it exists)
+                            mkdir -p test-results
+                            echo "\$KOLA_EXIT" > test-results/kola-test-exit-code.txt
+                            
+                            # Log failure but let catchError handle it
                             if [ \$KOLA_EXIT -ne 0 ]; then
                                 echo "❌ Kola test FAILED with exit code: \$KOLA_EXIT"
-                                exit \$KOLA_EXIT
+                                # Don't exit - let catchError handle the failure
+                                return \$KOLA_EXIT
                             fi
                         """
                     }
