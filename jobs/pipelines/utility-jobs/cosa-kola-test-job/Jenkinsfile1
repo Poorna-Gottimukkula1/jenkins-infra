@@ -1251,6 +1251,66 @@ Full logs: ${env.BUILD_URL}artifact/
                 echo "- console.txt"
                 echo "- journal.txt"
                 
+                // Auto-retry logic with increased memory
+                def currentMemory = params.QEMU_MEMORY.toInteger()
+                def memoryOptions = [2048, 4096, 6144, 8192, 12288]
+                def currentIndex = memoryOptions.indexOf(currentMemory)
+                def nextMemory = null
+                
+                // Find next higher memory option
+                if (currentIndex >= 0 && currentIndex < memoryOptions.size() - 1) {
+                    nextMemory = memoryOptions[currentIndex + 1]
+                }
+                
+                // Check if this is already a retry (to prevent infinite loops)
+                def isRetry = currentBuild.description?.contains("RETRY")
+                
+                if (nextMemory && !isRetry) {
+                    echo "========================================="
+                    echo "🔄 Auto-Retry Triggered"
+                    echo "Current Memory: ${currentMemory} MB"
+                    echo "Next Memory: ${nextMemory} MB"
+                    echo "========================================="
+                    
+                    // Trigger retry with increased memory
+                    try {
+                        build job: env.JOB_NAME,
+                            parameters: [
+                                string(name: 'BUILD_MODE', value: params.BUILD_MODE),
+                                string(name: 'FEDORA_COREOS_CONFIG_REPO', value: params.FEDORA_COREOS_CONFIG_REPO),
+                                string(name: 'FEDORA_COREOS_CONFIG_BRANCH', value: params.FEDORA_COREOS_CONFIG_BRANCH),
+                                string(name: 'STREAM', value: params.STREAM),
+                                booleanParam(name: 'RUN_KOLA_TESTS', value: params.RUN_KOLA_TESTS),
+                                string(name: 'KOLA_TEST', value: params.KOLA_TEST),
+                                booleanParam(name: 'RUN_UPGRADE_TESTS', value: params.RUN_UPGRADE_TESTS),
+                                booleanParam(name: 'RUN_EXTENDED_UPGRADE_TESTS', value: params.RUN_EXTENDED_UPGRADE_TESTS),
+                                string(name: 'TARGET_UPGRADE_STREAM', value: params.TARGET_UPGRADE_STREAM),
+                                string(name: 'COSA_CONTAINER', value: params.COSA_CONTAINER),
+                                string(name: 'BUILD_VERSION', value: params.BUILD_VERSION),
+                                string(name: 'QEMU_MEMORY', value: nextMemory.toString()),
+                                booleanParam(name: 'DEBUG_MODE', value: params.DEBUG_MODE),
+                                booleanParam(name: 'FORCE_BUILDFETCH', value: params.FORCE_BUILDFETCH),
+                                booleanParam(name: 'TAIL_CONSOLE_LOG', value: params.TAIL_CONSOLE_LOG),
+                                string(name: 'MULTIPLY', value: params.MULTIPLY),
+                                string(name: 'PARALLEL', value: params.PARALLEL),
+                                text(name: 'ADDITIONAL_KOLA_ARGS', value: params.ADDITIONAL_KOLA_ARGS),
+                                text(name: 'ADDITIONAL_UPGRADE_ARGS', value: params.ADDITIONAL_UPGRADE_ARGS)
+                            ],
+                            wait: false
+                        
+                        echo "✅ Retry job triggered successfully with ${nextMemory} MB memory"
+                        
+                        // Update current build description to indicate retry was triggered
+                        currentBuild.description = (currentBuild.description ?: "") + " | RETRY TRIGGERED (${nextMemory}MB)"
+                    } catch (Exception e) {
+                        echo "❌ Failed to trigger retry: ${e.message}"
+                    }
+                } else if (isRetry) {
+                    echo "⚠️  This is already a retry build. Not triggering another retry to prevent loops."
+                } else {
+                    echo "⚠️  Already at maximum memory (${currentMemory} MB). No retry triggered."
+                }
+                
                 // Read actual build ID
                 def actualBuildId = ""
                 if (fileExists("${WORKSPACE_DIR}/actual-build-id.txt")) {
