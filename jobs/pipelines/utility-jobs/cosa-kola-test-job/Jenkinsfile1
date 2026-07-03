@@ -408,8 +408,8 @@ EOF
         
         stage('Build from Scratch') {
             when {
-                expression { 
-                    params.BUILD_MODE == 'build' || params.RUN_UPGRADE_TESTS == true 
+                expression {
+                    params.BUILD_MODE == 'build'
                 }
             }
             steps {
