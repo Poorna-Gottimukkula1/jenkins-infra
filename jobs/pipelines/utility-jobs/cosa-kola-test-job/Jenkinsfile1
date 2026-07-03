@@ -68,7 +68,7 @@ pipeline {
         choice(
             name: 'QEMU_MEMORY',
             choices: ['2048', '4096', '6144', '8192', '12288'],
-            description: 'Memory in MB for QEMU VM (8192 recommended for ppc64le upgrade tests, 4096 for kernel-replace test)'
+            description: 'Memory in MB for QEMU VM. NOTE: COSA doubles this value on ppc64le! (2048→2048MB, 4096→8192MB). Recommended: 4096 for upgrade tests (actual: 8192MB), 2048 for kernel-replace (actual: 2048MB)'
         )
         booleanParam(
             name: 'DEBUG_MODE',
