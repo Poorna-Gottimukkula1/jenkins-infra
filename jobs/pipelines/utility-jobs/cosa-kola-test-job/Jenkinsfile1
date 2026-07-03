@@ -282,7 +282,7 @@ EOF
         stage('Fetch Pre-built Artifact') {
             when {
                 expression {
-                    params.BUILD_MODE == 'fetch' && params.RUN_UPGRADE_TESTS == false
+                    params.BUILD_MODE == 'fetch'
                 }
             }
             steps {
