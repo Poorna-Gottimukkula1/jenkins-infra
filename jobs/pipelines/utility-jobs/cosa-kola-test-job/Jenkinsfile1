@@ -285,6 +285,10 @@ EOF
                     params.BUILD_MODE == 'fetch'
                 }
             }
+            options {
+                timeout(time: 10, unit: 'MINUTES')  // Increase timeout for large downloads
+                retry(2)  // Retry up to 2 times on failure
+            }
             steps {
                 script {
                     echo "=== Fetching Pre-built Artifact for ppc64le ==="
