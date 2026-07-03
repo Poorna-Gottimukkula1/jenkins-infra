@@ -1,0 +1,733 @@
+@Library('jenkins-upstream-library') _
+
+pipeline {
+    agent {
+        label 'ppc64le-fedora-osu'
+    }
+    
+    parameters {
+        choice(
+            name: 'FEDORA_COREOS_CONFIG_BRANCH',
+            choices: ['rawhide', 'stable', 'testing', 'next'],
+            description: 'Fedora CoreOS config branch and stream to test'
+        )
+        string(
+            name: 'KOLA_TEST',
+            defaultValue: 'ext.config.rpm-ostree.kernel-replace',
+            description: 'Kola test to run (e.g., ext.config.rpm-ostree.kernel-replace, basic, or "all" for all tests)'
+        )
+        choice(
+            name: 'COSA_CONTAINER',
+            choices: [
+                'quay.io/coreos-assembler/coreos-assembler:latest',
+                'quay.io/coreos-assembler/coreos-assembler:main',
+                'quay.io/coreos-assembler/coreos-assembler:stable'
+            ],
+            description: 'COSA container image to use'
+        )
+        string(
+            name: 'BUILD_VERSION',
+            defaultValue: '',
+            description: 'Specific build version to test (e.g., 42.20250205.91.0). Leave empty to fetch latest from stream.'
+        )
+        string(
+            name: 'FEDORA_COREOS_CONFIG_BRANCH',
+            defaultValue: 'rawhide',
+            description: 'Branch of fedora-coreos-config to use'
+        )
+        string(
+            name: 'QEMU_MEMORY',
+            defaultValue: '4096',
+            description: 'Memory in MB for QEMU VM (4096 recommended for kernel-replace test)'
+        )
+        booleanParam(
+            name: 'DEBUG_MODE',
+            defaultValue: true,
+            description: 'Enable debug mode for detailed logging'
+        )
+        booleanParam(
+            name: 'FORCE_BUILDFETCH',
+            defaultValue: true,
+            description: 'Force fetch of latest artifact even if cached'
+        )
+        booleanParam(
+            name: 'TAIL_CONSOLE_LOG',
+            defaultValue: true,
+            description: 'Tail console log in real-time during test execution'
+        )
+        string(
+            name: 'MULTIPLY',
+            defaultValue: '1',
+            description: 'Number of times to run the test (use with PARALLEL for parallel execution)'
+        )
+        choice(
+            name: 'PARALLEL',
+            choices: ['1', 'auto', '2', '4', '8'],
+            description: 'Number of parallel test executions (auto = based on available resources)'
+        )
+        text(
+            name: 'ADDITIONAL_KOLA_ARGS',
+            defaultValue: '',
+            description: 'Additional arguments to pass to kola run (e.g., --qemu-firmware uefi)'
+        )
+    }
+    
+    environment {
+        WORKSPACE_DIR = "${WORKSPACE}/cosa-workspace"
+        COSA_CONTAINER_IMAGE = "${params.COSA_CONTAINER}"
+        COREOS_ASSEMBLER_CONTAINER = "${params.COSA_CONTAINER}"
+        ARCHITECTURE = "ppc64le"
+        COSA_CONTAINER_NAME = "cosa${BUILD_NUMBER}"
+    }
+    
+    stages {
+        stage('Setup Environment') {
+            steps {
+                script {
+                    echo "========================================="
+                    echo "COSA Kola Test Pipeline - ppc64le"
+                    echo "========================================="
+                    echo "Architecture: ppc64le (fixed)"
+                    echo "Stream: ${params.STREAM}"
+                    echo "Test: ${params.KOLA_TEST}"
+                    echo "COSA Container: ${params.COSA_CONTAINER}"
+                    echo "Config Branch: ${params.FEDORA_COREOS_CONFIG_BRANCH}"
+                    echo "Memory: ${params.QEMU_MEMORY}MB"
+                    echo "Disk: ${params.QEMU_DISK}GB"
+                    echo "Debug Mode: ${params.DEBUG_MODE}"
+                    echo "========================================="
+                    
+                    // Create workspace directory
+                    sh """
+                        mkdir -p ${WORKSPACE_DIR}
+                        cd ${WORKSPACE_DIR}
+                        echo "Workspace created at: \$(pwd)"
+                    """
+                }
+            }
+        }
+        
+        stage('Check Podman and Pull COSA') {
+            steps {
+                script {
+                    echo "=== Checking Podman Installation ==="
+                    sh """
+                        podman --version
+                        podman info
+                    """
+                    
+                    echo "=== Pulling COSA Container Image ==="
+                    sh """
+                        podman pull ${params.COSA_CONTAINER}
+                        podman inspect ${params.COSA_CONTAINER} | jq -r '.[0].Created'
+                    """
+                }
+            }
+        }
+        
+        stage('Initialize COSA') {
+            steps {
+                script {
+                    echo "=== Initializing COSA ==="
+                    sh """
+                        cd ${WORKSPACE_DIR}
+                        
+                        # Override cosa function to use unique container name
+                        cosa() {
+                            env | grep COREOS_ASSEMBLER
+                            local -r COREOS_ASSEMBLER_CONTAINER_LATEST="quay.io/coreos-assembler/coreos-assembler:latest"
+                            
+                            if [[ -z \${COREOS_ASSEMBLER_CONTAINER} ]] && podman image exists \${COREOS_ASSEMBLER_CONTAINER_LATEST}; then
+                                local -r cosa_build_date_str="\$(podman inspect -f "{{.Created}}" \${COREOS_ASSEMBLER_CONTAINER_LATEST} | awk '{print \$1}')"
+                                local -r cosa_build_date="\$(date -d \${cosa_build_date_str} +%s)"
+                                
+                                if [[ \$(date +%s) -ge \$((cosa_build_date + 60*60*24*7)) ]]; then
+                                    echo -e "\\e[0;33m----" >&2
+                                    echo "The COSA container image is more than a week old and likely outdated." >&2
+                                    echo "You should pull the latest version with:" >&2
+                                    echo "podman pull \${COREOS_ASSEMBLER_CONTAINER_LATEST}" >&2
+                                    echo -e "----\\e[0m" >&2
+                                    sleep 10
+                                fi
+                            fi
+                            
+                            set -x
+                            podman run --rm -ti --security-opt=label=disable --privileged \\
+                                --userns=keep-id:uid=1000,gid=1000 \\
+                                -v=\${PWD}:/srv/ --device=/dev/kvm --device=/dev/fuse \\
+                                --tmpfs=/tmp -v=/var/tmp:/var/tmp --name=${COSA_CONTAINER_NAME} \\
+                                \${COREOS_ASSEMBLER_CONFIG_GIT:+-v=\$COREOS_ASSEMBLER_CONFIG_GIT:/srv/src/config/:ro} \\
+                                \${COREOS_ASSEMBLER_GIT:+-v=\$COREOS_ASSEMBLER_GIT/src/:/usr/lib/coreos-assembler/:ro} \\
+                                \${COREOS_ASSEMBLER_ADD_CERTS:+-v=/etc/pki/ca-trust:/etc/pki/ca-trust:ro} \\
+                                \${COREOS_ASSEMBLER_CONTAINER_RUNTIME_ARGS} \\
+                                \${COREOS_ASSEMBLER_CONTAINER:-\$COREOS_ASSEMBLER_CONTAINER_LATEST} "\$@"
+                            rc=\$?
+                            set +x
+                            return \$rc
+                        }
+                        
+                        # Set COREOS_ASSEMBLER_CONTAINER environment variable
+                        export COREOS_ASSEMBLER_CONTAINER="${params.COSA_CONTAINER}"
+                        
+                        echo "Using container name: ${COSA_CONTAINER_NAME}"
+                        
+                        # Initialize COSA with fedora-coreos-config
+                        cosa init --branch ${params.FEDORA_COREOS_CONFIG_BRANCH} \\
+                            https://github.com/coreos/fedora-coreos-config
+                        
+                        echo "✅ COSA initialized successfully"
+                        ls -la
+                    """
+                }
+            }
+        }
+        
+        stage('Clear Kola Denylist') {
+            steps {
+                script {
+                    echo "=== Clearing Kola Denylist for ppc64le ==="
+                    sh """
+                        cd ${WORKSPACE_DIR}
+                        
+                        if [ -f src/config/kola-denylist.yaml ]; then
+                            echo "Original denylist:"
+                            cat src/config/kola-denylist.yaml
+                            echo ""
+                            
+                            # Backup original
+                            cp src/config/kola-denylist.yaml src/config/kola-denylist.yaml.backup
+                            
+                            # Completely empty the denylist file
+                            cat > src/config/kola-denylist.yaml << 'EOF'
+# Kola denylist cleared by Jenkins pipeline for ppc64le testing
+# Original backed up to kola-denylist.yaml.backup
+# All tests will run on ppc64le architecture
+
+EOF
+                            
+                            echo "✅ Denylist has been completely cleared"
+                            echo ""
+                            echo "New denylist content:"
+                            cat src/config/kola-denylist.yaml
+                            echo ""
+                        else
+                            echo "⚠️  Denylist file not found at src/config/kola-denylist.yaml"
+                        fi
+                    """
+                }
+            }
+        }
+        
+        stage('Fetch Pre-built Artifact') {
+            steps {
+                script {
+                    echo "=== Fetching Pre-built Artifact for ppc64le ==="
+                    
+                    def forceFlag = params.FORCE_BUILDFETCH ? '--force' : ''
+                    def buildFlag = params.BUILD_VERSION ? "--build=${params.BUILD_VERSION}" : "--stream=${params.STREAM}"
+                    
+                    sh """
+                        cd ${WORKSPACE_DIR}
+                        
+                        # Override cosa function to use unique container name
+                        cosa() {
+                            env | grep COREOS_ASSEMBLER
+                            local -r COREOS_ASSEMBLER_CONTAINER_LATEST="quay.io/coreos-assembler/coreos-assembler:latest"
+                            
+                            if [[ -z \${COREOS_ASSEMBLER_CONTAINER} ]] && podman image exists \${COREOS_ASSEMBLER_CONTAINER_LATEST}; then
+                                local -r cosa_build_date_str="\$(podman inspect -f "{{.Created}}" \${COREOS_ASSEMBLER_CONTAINER_LATEST} | awk '{print \$1}')"
+                                local -r cosa_build_date="\$(date -d \${cosa_build_date_str} +%s)"
+                                
+                                if [[ \$(date +%s) -ge \$((cosa_build_date + 60*60*24*7)) ]]; then
+                                    echo -e "\\e[0;33m----" >&2
+                                    echo "The COSA container image is more than a week old and likely outdated." >&2
+                                    echo "You should pull the latest version with:" >&2
+                                    echo "podman pull \${COREOS_ASSEMBLER_CONTAINER_LATEST}" >&2
+                                    echo -e "----\\e[0m" >&2
+                                    sleep 10
+                                fi
+                            fi
+                            
+                            set -x
+                            podman run --rm -ti --security-opt=label=disable --privileged \\
+                                --userns=keep-id:uid=1000,gid=1000 \\
+                                -v=\${PWD}:/srv/ --device=/dev/kvm --device=/dev/fuse \\
+                                --tmpfs=/tmp -v=/var/tmp:/var/tmp --name=${COSA_CONTAINER_NAME} \\
+                                \${COREOS_ASSEMBLER_CONFIG_GIT:+-v=\$COREOS_ASSEMBLER_CONFIG_GIT:/srv/src/config/:ro} \\
+                                \${COREOS_ASSEMBLER_GIT:+-v=\$COREOS_ASSEMBLER_GIT/src/:/usr/lib/coreos-assembler/:ro} \\
+                                \${COREOS_ASSEMBLER_ADD_CERTS:+-v=/etc/pki/ca-trust:/etc/pki/ca-trust:ro} \\
+                                \${COREOS_ASSEMBLER_CONTAINER_RUNTIME_ARGS} \\
+                                \${COREOS_ASSEMBLER_CONTAINER:-\$COREOS_ASSEMBLER_CONTAINER_LATEST} "\$@"
+                            rc=\$?
+                            set +x
+                            return \$rc
+                        }
+                        
+                        # Set COREOS_ASSEMBLER_CONTAINER environment variable
+                        export COREOS_ASSEMBLER_CONTAINER="${params.COSA_CONTAINER}"
+                        
+                        echo "Using container name: ${COSA_CONTAINER_NAME}"
+                        
+                        if [ -n "${params.BUILD_VERSION}" ]; then
+                            echo "Fetching specific build: ${params.BUILD_VERSION} for ppc64le..."
+                            echo "Note: Stream/branch parameter (${params.FEDORA_COREOS_CONFIG_BRANCH}) is ignored when BUILD_VERSION is specified"
+                            
+                            # Fetch the specific build
+                            cosa buildfetch ${forceFlag} --build=${params.BUILD_VERSION} --arch=ppc64le
+                            
+                            # Fetch the qemu artifact for the specific build
+                            cosa buildfetch --build=${params.BUILD_VERSION} --artifact=qemu
+                            
+                            # Decompress the specific build
+                            echo "Decompressing artifact for build ${params.BUILD_VERSION}..."
+                            cosa decompress --build ${params.BUILD_VERSION}
+                        else
+                            echo "Fetching latest build from ${params.FEDORA_COREOS_CONFIG_BRANCH} stream for ppc64le..."
+                            
+                            # Fetch the latest from stream
+                            cosa buildfetch ${forceFlag} --stream=${params.FEDORA_COREOS_CONFIG_BRANCH} --arch=ppc64le
+                            
+                            # Fetch the qemu artifact from stream
+                            cosa buildfetch --stream=${params.FEDORA_COREOS_CONFIG_BRANCH} --artifact=qemu
+                            
+                            # Decompress (will use latest)
+                            echo "Decompressing artifact..."
+                            cosa decompress
+                        fi
+                        
+                        echo "✅ Artifact fetched and decompressed"
+                        ls -lh builds/
+                    """
+                }
+            }
+        }
+        
+        stage('Run Kola Test') {
+            steps {
+                script {
+                    echo "========================================="
+                    echo "=== Running Kola Test on ppc64le ==="
+                    echo "========================================="
+                    
+                    def debugFlag = params.DEBUG_MODE ? '--debug' : ''
+                    def kolaArgs = params.ADDITIONAL_KOLA_ARGS ?: ''
+                    def buildFlag = params.BUILD_VERSION ? "--build=${params.BUILD_VERSION}" : ''
+                    def multiplyFlag = params.MULTIPLY.toInteger() > 1 ? "--multiply ${params.MULTIPLY}" : ''
+                    def parallelFlag = params.MULTIPLY.toInteger() > 1 ? "--parallel ${params.PARALLEL}" : ''
+                    
+                    // Start test with console log tailing if enabled
+                    if (params.TAIL_CONSOLE_LOG) {
+                        sh """
+                            cd ${WORKSPACE_DIR}
+                            
+                            # Override cosa function to use unique container name
+                            cosa() {
+                                env | grep COREOS_ASSEMBLER
+                                local -r COREOS_ASSEMBLER_CONTAINER_LATEST="quay.io/coreos-assembler/coreos-assembler:latest"
+                                
+                                if [[ -z \${COREOS_ASSEMBLER_CONTAINER} ]] && podman image exists \${COREOS_ASSEMBLER_CONTAINER_LATEST}; then
+                                    local -r cosa_build_date_str="\$(podman inspect -f "{{.Created}}" \${COREOS_ASSEMBLER_CONTAINER_LATEST} | awk '{print \$1}')"
+                                    local -r cosa_build_date="\$(date -d \${cosa_build_date_str} +%s)"
+                                    
+                                    if [[ \$(date +%s) -ge \$((cosa_build_date + 60*60*24*7)) ]]; then
+                                        echo -e "\\e[0;33m----" >&2
+                                        echo "The COSA container image is more than a week old and likely outdated." >&2
+                                        echo "You should pull the latest version with:" >&2
+                                        echo "podman pull \${COREOS_ASSEMBLER_CONTAINER_LATEST}" >&2
+                                        echo -e "----\\e[0m" >&2
+                                        sleep 10
+                                    fi
+                                fi
+                                
+                                set -x
+                                podman run --rm -ti --security-opt=label=disable --privileged \\
+                                    --userns=keep-id:uid=1000,gid=1000 \\
+                                    -v=\${PWD}:/srv/ --device=/dev/kvm --device=/dev/fuse \\
+                                    --tmpfs=/tmp -v=/var/tmp:/var/tmp --name=${COSA_CONTAINER_NAME} \\
+                                    \${COREOS_ASSEMBLER_CONFIG_GIT:+-v=\$COREOS_ASSEMBLER_CONFIG_GIT:/srv/src/config/:ro} \\
+                                    \${COREOS_ASSEMBLER_GIT:+-v=\$COREOS_ASSEMBLER_GIT/src/:/usr/lib/coreos-assembler/:ro} \\
+                                    \${COREOS_ASSEMBLER_ADD_CERTS:+-v=/etc/pki/ca-trust:/etc/pki/ca-trust:ro} \\
+                                    \${COREOS_ASSEMBLER_CONTAINER_RUNTIME_ARGS} \\
+                                    \${COREOS_ASSEMBLER_CONTAINER:-\$COREOS_ASSEMBLER_CONTAINER_LATEST} "\$@"
+                                rc=\$?
+                                set +x
+                                return \$rc
+                            }
+                            
+                            # Set COREOS_ASSEMBLER_CONTAINER environment variable
+                            export COREOS_ASSEMBLER_CONTAINER="${params.COSA_CONTAINER}"
+                            
+                            echo "Using container name: ${COSA_CONTAINER_NAME}"
+                            
+                            echo "Starting kola test: ${params.KOLA_TEST}"
+                            echo "Architecture: ppc64le"
+                            echo "Memory: ${params.QEMU_MEMORY}MB"
+                            if [ -n "${params.BUILD_VERSION}" ]; then
+                                echo "Build: ${params.BUILD_VERSION}"
+                            fi
+                            if [ "${params.MULTIPLY}" != "1" ]; then
+                                echo "Multiply: ${params.MULTIPLY} times"
+                                echo "Parallel: ${params.PARALLEL}"
+                            fi
+                            echo "Additional args: ${kolaArgs}"
+                            echo ""
+                            
+                            # Run test and capture output
+                            cosa kola run '${params.KOLA_TEST}' \\
+                                ${debugFlag} \\
+                                --qemu-memory ${params.QEMU_MEMORY} \\
+                                ${buildFlag} \\
+                                ${multiplyFlag} \\
+                                ${parallelFlag} \\
+                                ${kolaArgs} \\
+                                2>&1 | tee kola-test-output.log &
+                            
+                            KOLA_PID=\$!
+                            echo "Kola test started with PID: \$KOLA_PID"
+                            
+                            # Wait a bit for test to start and create console log
+                            sleep 10
+                            
+                            # Check if running multiple tests in parallel
+                            if [ "${params.MULTIPLY}" != "1" ]; then
+                                echo "========================================="
+                                echo "Running ${params.MULTIPLY} tests in parallel (${params.PARALLEL})"
+                                echo "Console tailing disabled for parallel runs"
+                                echo "All console logs will be captured in artifacts"
+                                echo "Monitor kola-test-output.log for progress"
+                                echo "========================================="
+                                
+                                # Just wait for completion, no tailing
+                                wait \$KOLA_PID
+                                KOLA_EXIT=\$?
+                            else
+                                # Single test - tail the console log
+                                CONSOLE_LOG=\$(find tmp/kola/ -name "console.txt" -type f 2>/dev/null | head -1)
+                                
+                                if [ -n "\$CONSOLE_LOG" ]; then
+                                    echo "========================================="
+                                    echo "Console log found: \$CONSOLE_LOG"
+                                    echo "Tailing console output..."
+                                    echo "========================================="
+                                    
+                                    # Tail console log in background
+                                    tail -f "\$CONSOLE_LOG" 2>/dev/null &
+                                    TAIL_PID=\$!
+                                    
+                                    # Wait for kola test to complete
+                                    wait \$KOLA_PID
+                                    KOLA_EXIT=\$?
+                                    
+                                    # Stop tailing
+                                    kill \$TAIL_PID 2>/dev/null || true
+                                    
+                                    exit \$KOLA_EXIT
+                                else
+                                    echo "⚠️  Console log not found, waiting for test completion..."
+                                    wait \$KOLA_PID
+                                    KOLA_EXIT=\$?
+                                fi
+                            fi
+                            
+                            # Check exit code and fail if test failed
+                            if [ \$KOLA_EXIT -ne 0 ]; then
+                                echo "❌ Kola test FAILED with exit code: \$KOLA_EXIT"
+                                exit \$KOLA_EXIT
+                            fi
+                        """
+                    } else {
+                        sh """
+                            cd ${WORKSPACE_DIR}
+                            
+                            # Override cosa function to use unique container name
+                            cosa() {
+                                env | grep COREOS_ASSEMBLER
+                                local -r COREOS_ASSEMBLER_CONTAINER_LATEST="quay.io/coreos-assembler/coreos-assembler:latest"
+                                
+                                if [[ -z \${COREOS_ASSEMBLER_CONTAINER} ]] && podman image exists \${COREOS_ASSEMBLER_CONTAINER_LATEST}; then
+                                    local -r cosa_build_date_str="\$(podman inspect -f "{{.Created}}" \${COREOS_ASSEMBLER_CONTAINER_LATEST} | awk '{print \$1}')"
+                                    local -r cosa_build_date="\$(date -d \${cosa_build_date_str} +%s)"
+                                    
+                                    if [[ \$(date +%s) -ge \$((cosa_build_date + 60*60*24*7)) ]]; then
+                                        echo -e "\\e[0;33m----" >&2
+                                        echo "The COSA container image is more than a week old and likely outdated." >&2
+                                        echo "You should pull the latest version with:" >&2
+                                        echo "podman pull \${COREOS_ASSEMBLER_CONTAINER_LATEST}" >&2
+                                        echo -e "----\\e[0m" >&2
+                                        sleep 10
+                                    fi
+                                fi
+                                
+                                set -x
+                                podman run --rm -ti --security-opt=label=disable --privileged \\
+                                    --userns=keep-id:uid=1000,gid=1000 \\
+                                    -v=\${PWD}:/srv/ --device=/dev/kvm --device=/dev/fuse \\
+                                    --tmpfs=/tmp -v=/var/tmp:/var/tmp --name=${COSA_CONTAINER_NAME} \\
+                                    \${COREOS_ASSEMBLER_CONFIG_GIT:+-v=\$COREOS_ASSEMBLER_CONFIG_GIT:/srv/src/config/:ro} \\
+                                    \${COREOS_ASSEMBLER_GIT:+-v=\$COREOS_ASSEMBLER_GIT/src/:/usr/lib/coreos-assembler/:ro} \\
+                                    \${COREOS_ASSEMBLER_ADD_CERTS:+-v=/etc/pki/ca-trust:/etc/pki/ca-trust:ro} \\
+                                    \${COREOS_ASSEMBLER_CONTAINER_RUNTIME_ARGS} \\
+                                    \${COREOS_ASSEMBLER_CONTAINER:-\$COREOS_ASSEMBLER_CONTAINER_LATEST} "\$@"
+                                rc=\$?
+                                set +x
+                                return \$rc
+                            }
+                            
+                            # Set COREOS_ASSEMBLER_CONTAINER environment variable
+                            export COREOS_ASSEMBLER_CONTAINER="${params.COSA_CONTAINER}"
+                            
+                            echo "Using container name: ${COSA_CONTAINER_NAME}"
+                            
+                            echo "Running kola test: ${params.KOLA_TEST}"
+                            if [ -n "${params.BUILD_VERSION}" ]; then
+                                echo "Build: ${params.BUILD_VERSION}"
+                            fi
+                            if [ "${params.MULTIPLY}" != "1" ]; then
+                                echo "Multiply: ${params.MULTIPLY} times"
+                                echo "Parallel: ${params.PARALLEL}"
+                            fi
+                            
+                            cosa kola run '${params.KOLA_TEST}' \\
+                                ${debugFlag} \\
+                                --qemu-memory ${params.QEMU_MEMORY} \\
+                                ${buildFlag} \\
+                                ${multiplyFlag} \\
+                                ${parallelFlag} \\
+                                ${kolaArgs} \\
+                                2>&1 | tee kola-test-output.log
+                        """
+                    }
+                    
+                    echo "✅ Kola test completed successfully"
+                }
+            }
+        }
+        
+        stage('Collect Results') {
+            steps {
+                script {
+                    echo "=== Collecting Test Results ==="
+                    sh """
+                        cd ${WORKSPACE_DIR}
+                        
+                        # Create results directory
+                        mkdir -p test-results
+                        
+                        # Copy test output
+                        if [ -f kola-test-output.log ]; then
+                            cp kola-test-output.log test-results/
+                        fi
+                        
+                        # Find the test UUID directory
+                        TEST_UUID_DIR=\$(find tmp/kola/${params.KOLA_TEST}/ -maxdepth 1 -type d -name "*-*-*-*-*" 2>/dev/null | head -1)
+                        
+                        if [ -n "\$TEST_UUID_DIR" ]; then
+                            echo "Found test directory: \$TEST_UUID_DIR"
+                            
+                            # Copy ALL files from the UUID directory
+                            echo "Copying all files from test directory..."
+                            cp -r "\$TEST_UUID_DIR"/* test-results/ 2>/dev/null || true
+                            
+                            # List what we captured
+                            echo "Captured files:"
+                            ls -lh test-results/
+                        else
+                            echo "⚠️  Test UUID directory not found, collecting what we can..."
+                            
+                            # Fallback: copy specific files if UUID dir not found
+                            if [ -d tmp/kola/${params.KOLA_TEST} ]; then
+                                find tmp/kola/${params.KOLA_TEST}/ -type f -exec cp {} test-results/ \\; 2>/dev/null || true
+                            fi
+                        fi
+                        
+                        # Copy denylist backup
+                        if [ -f src/config/kola-denylist.yaml.backup ]; then
+                            cp src/config/kola-denylist.yaml.backup test-results/
+                        fi
+                        
+                        # Copy any additional crash dumps or diagnostic files from parent kola dir
+                        find tmp/kola/ -maxdepth 2 -name "*.log" -type f -exec cp {} test-results/ \\; 2>/dev/null || true
+                        
+                        # Create summary
+                        BUILD_VER="${params.BUILD_VERSION}"
+                        if [ -z "\$BUILD_VER" ]; then
+                            BUILD_VER="latest from stream"
+                        fi
+                        
+                        TEST_DIR="\${TEST_UUID_DIR}"
+                        if [ -z "\$TEST_DIR" ]; then
+                            TEST_DIR="Not found"
+                        fi
+                        
+                        cat > test-results/test-summary.txt << EOF
+========================================
+COSA Kola Test Summary - ppc64le
+========================================
+Build Number: ${BUILD_NUMBER}
+Architecture: ppc64le (fixed)
+Stream: ${params.STREAM}
+Build Version: \$BUILD_VER
+Test: ${params.KOLA_TEST}
+Multiply: ${params.MULTIPLY}
+Parallel: ${params.PARALLEL}
+COSA Container: ${params.COSA_CONTAINER}
+Config Branch: ${params.FEDORA_COREOS_CONFIG_BRANCH}
+Memory: ${params.QEMU_MEMORY}MB
+Debug Mode: ${params.DEBUG_MODE}
+Denylist: Completely cleared
+Test Directories: \$TEST_DIR
+Timestamp: \$(date)
+========================================
+
+Captured Files:
+EOF
+                        ls -lh test-results/ >> test-results/test-summary.txt
+                        
+                        echo ""
+                        echo "✅ Test results collected in test-results/"
+                        echo "Files captured:"
+                        ls -lh test-results/
+                    """
+                }
+            }
+        }
+    }
+    
+    post {
+        always {
+            script {
+                echo "=== Collecting Partial Results (if any) ==="
+                sh """
+                    cd ${WORKSPACE_DIR} || exit 0
+                    
+                    # Create results directory if it doesn't exist
+                    mkdir -p test-results
+                    
+                    # Copy any logs that were generated
+                    if [ -f kola-test-output.log ]; then
+                        cp kola-test-output.log test-results/ 2>/dev/null || true
+                    fi
+                    
+                    # Find all test directories (handles multiply with patterns like ext.config.rpm-ostree.kernel-replace0, kernel-replace1, etc.)
+                    TEST_DIRS=\$(find tmp/kola/ -maxdepth 1 -type d -name "${params.KOLA_TEST}*" 2>/dev/null)
+                    
+                    if [ -n "\$TEST_DIRS" ]; then
+                        echo "Found test directories:"
+                        echo "\$TEST_DIRS"
+                        
+                        # Process each test directory
+                        for TEST_DIR in \$TEST_DIRS; do
+                            TEST_NAME=\$(basename "\$TEST_DIR")
+                            echo "Processing: \$TEST_NAME"
+                            
+                            # Find UUID directory within each test directory
+                            UUID_DIR=\$(find "\$TEST_DIR" -maxdepth 1 -type d -name "*-*-*-*-*" 2>/dev/null | head -1)
+                            
+                            if [ -n "\$UUID_DIR" ]; then
+                                # Create subdirectory for this test run
+                                mkdir -p "test-results/\$TEST_NAME"
+                                cp -r "\$UUID_DIR"/* "test-results/\$TEST_NAME/" 2>/dev/null || true
+                                echo "  Copied files from \$UUID_DIR"
+                            fi
+                        done
+                    fi
+                    
+                    # Also copy any loose log files
+                    find tmp/kola/ -maxdepth 2 -name "*.log" -type f -exec cp {} test-results/ \\; 2>/dev/null || true
+                    
+                    # Create a status file
+                    echo "Build Status: \${BUILD_RESULT:-UNKNOWN}" > test-results/build-status.txt
+                    echo "Timestamp: \$(date)" >> test-results/build-status.txt
+                    
+                    echo "Partial results collected (if any)"
+                    ls -lh test-results/ 2>/dev/null || echo "No results directory"
+                """
+                
+                echo "=== Archiving Artifacts ==="
+                // Use relative path from workspace root
+                dir("${WORKSPACE_DIR}") {
+                    archiveArtifacts allowEmptyArchive: true,
+                        artifacts: "test-results/**/*",
+                        fingerprint: true,
+                        onlyIfSuccessful: false
+                }
+                
+                echo "=== Cleaning Up COSA Container ==="
+                sh """
+                    podman rm -f ${COSA_CONTAINER_NAME} 2>/dev/null || true
+                    echo "Container ${COSA_CONTAINER_NAME} cleanup complete"
+                """
+            }
+        }
+        success {
+            echo "========================================="
+            echo "✅ COSA Kola Test PASSED on ppc64le"
+            echo "========================================="
+        }
+        failure {
+            script {
+                echo "========================================="
+                echo "❌ COSA Kola Test FAILED on ppc64le"
+                echo "========================================="
+                echo "Check archived artifacts for details:"
+                echo "- kola-test-output.log"
+                echo "- console.txt"
+                echo "- journal.txt"
+                
+                // Send Slack notification with last 10 lines of console log
+                def consoleLog = ""
+                try {
+                    def consoleFile = "${WORKSPACE_DIR}/test-results/console.txt"
+                    if (fileExists(consoleFile)) {
+                        consoleLog = sh(
+                            script: "tail -10 ${consoleFile}",
+                            returnStdout: true
+                        ).trim()
+                    } else {
+                        consoleLog = "Console log not found"
+                    }
+                } catch (Exception e) {
+                    consoleLog = "Error reading console log: ${e.message}"
+                }
+                
+                def slackMessage = """
+:x: *COSA Kola Test FAILED on ppc64le*
+
+*Build*: #${BUILD_NUMBER}
+*Test*: ${params.KOLA_TEST}
+*Stream/Branch*: ${params.FEDORA_COREOS_CONFIG_BRANCH}
+*Build Version*: ${params.BUILD_VERSION ?: 'latest'}
+*Job*: ${env.JOB_NAME}
+*URL*: ${env.BUILD_URL}
+
+*Last 10 lines of console log:*
+```
+${consoleLog}
+```
+
+Check full logs in build artifacts.
+"""
+                
+                slackSend(
+                    channel: '#fedora-coreos-ci-tests',
+                    color: 'danger',
+                    message: slackMessage,
+                    //tokenCredentialId: 'slack-token'
+                )
+            }
+        }
+        aborted {
+            echo "========================================="
+            echo "⚠️  COSA Kola Test ABORTED on ppc64le"
+            echo "========================================="
+            echo "Partial logs have been captured in artifacts"
+            echo "Check archived artifacts for what was generated:"
+            echo "- kola-test-output.log (partial)"
+            echo "- console.txt (if test started)"
+            echo "- journal.txt (if available)"
+        }
+        cleanup {
+            cleanWs()
+        }
+    }
+}
