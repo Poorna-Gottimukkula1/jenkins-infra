@@ -98,20 +98,14 @@ cosa() {
 cosa --help
 ```
 
-#### Option B: Permanent (Add to ~/.bashrc)
+#### Option B: Permanent (Add to ~/.bashrc) ⭐ RECOMMENDED
 
-**Step 1: Add COSA function to ~/.bashrc**
+**One-Command Setup (No Editor Required):**
+
 ```bash
-# Open ~/.bashrc in your editor
-vi ~/.bashrc
-# or
-nano ~/.bashrc
+# Append COSA function to ~/.bashrc using cat
+cat >> ~/.bashrc << 'EOF'
 
-# Add the following at the end of the file:
-```
-
-**Step 2: Copy this entire block to ~/.bashrc**
-```bash
 # ============================================
 # COSA (CoreOS Assembler) Helper Function
 # ============================================
@@ -161,11 +155,9 @@ alias cdcosa='cd ~/cosa-workspace'
 # ============================================
 # End of COSA Configuration
 # ============================================
-```
+EOF
 
-**Step 3: Reload ~/.bashrc**
-```bash
-# Reload bashrc to apply changes
+# Reload bashrc to apply changes immediately
 source ~/.bashrc
 
 # Verify cosa function is available
@@ -175,7 +167,24 @@ type cosa
 cosa --help
 ```
 
-**Step 4: Verify in New Terminal**
+**That's it!** The COSA function is now permanently available in all new bash sessions.
+
+**Alternative: Manual Method (Using Editor)**
+
+If you prefer to edit manually:
+
+```bash
+# Open ~/.bashrc in your preferred editor
+vi ~/.bashrc
+# or
+nano ~/.bashrc
+
+# Scroll to the end and paste the COSA function block shown above
+# Save and exit, then reload:
+source ~/.bashrc
+```
+
+**Verify in New Terminal:**
 ```bash
 # Open a new terminal and test
 cosa --help
