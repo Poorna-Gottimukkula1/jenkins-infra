@@ -57,8 +57,10 @@ export COREOS_ASSEMBLER_CONTAINER="quay.io/coreos-assembler/coreos-assembler:lat
 ```
 
 ### Step 2: Define COSA Helper Function
+
+#### Option A: Temporary (Current Session Only)
 ```bash
-# Add this function to your shell (or add to ~/.bashrc)
+# Define function in current shell session
 cosa() {
     env | grep COREOS_ASSEMBLER
     local -r COREOS_ASSEMBLER_CONTAINER_LATEST="quay.io/coreos-assembler/coreos-assembler:latest"
@@ -94,6 +96,177 @@ cosa() {
 
 # Test the function
 cosa --help
+```
+
+#### Option B: Permanent (Add to ~/.bashrc)
+
+**Step 1: Add COSA function to ~/.bashrc**
+```bash
+# Open ~/.bashrc in your editor
+vi ~/.bashrc
+# or
+nano ~/.bashrc
+
+# Add the following at the end of the file:
+```
+
+**Step 2: Copy this entire block to ~/.bashrc**
+```bash
+# ============================================
+# COSA (CoreOS Assembler) Helper Function
+# ============================================
+
+# Set default COSA container
+export COREOS_ASSEMBLER_CONTAINER="quay.io/coreos-assembler/coreos-assembler:latest"
+
+# COSA wrapper function
+cosa() {
+    env | grep COREOS_ASSEMBLER
+    local -r COREOS_ASSEMBLER_CONTAINER_LATEST="quay.io/coreos-assembler/coreos-assembler:latest"
+    
+    # Check if container image is outdated
+    if [[ -z ${COREOS_ASSEMBLER_CONTAINER} ]] && podman image exists ${COREOS_ASSEMBLER_CONTAINER_LATEST}; then
+        local -r cosa_build_date_str="$(podman inspect -f "{{.Created}}" ${COREOS_ASSEMBLER_CONTAINER_LATEST} | awk '{print $1}')"
+        local -r cosa_build_date="$(date -d ${cosa_build_date_str} +%s)"
+        
+        if [[ $(date +%s) -ge $((cosa_build_date + 60*60*24*7)) ]]; then
+            echo -e "\e[0;33m----" >&2
+            echo "The COSA container image is more than a week old and likely outdated." >&2
+            echo "You should pull the latest version with:" >&2
+            echo "podman pull ${COREOS_ASSEMBLER_CONTAINER_LATEST}" >&2
+            echo -e "----\e[0m" >&2
+            sleep 10
+        fi
+    fi
+    
+    # Run COSA container with proper mounts and privileges
+    set -x
+    podman run --rm -ti --security-opt=label=disable --privileged \
+        --userns=keep-id:uid=1000,gid=1000 \
+        -v=${PWD}:/srv/ --device=/dev/kvm --device=/dev/fuse \
+        --tmpfs=/tmp -v=/var/tmp:/var/tmp --name=cosa-$(uuidgen) \
+        ${COREOS_ASSEMBLER_CONFIG_GIT:+-v=$COREOS_ASSEMBLER_CONFIG_GIT:/srv/src/config/:ro} \
+        ${COREOS_ASSEMBLER_GIT:+-v=$COREOS_ASSEMBLER_GIT/src/:/usr/lib/coreos-assembler/:ro} \
+        ${COREOS_ASSEMBLER_ADD_CERTS:+-v=/etc/pki/ca-trust:/etc/pki/ca-trust:ro} \
+        ${COREOS_ASSEMBLER_CONTAINER_RUNTIME_ARGS} \
+        ${COREOS_ASSEMBLER_CONTAINER:-$COREOS_ASSEMBLER_CONTAINER_LATEST} "$@"
+    rc=$?
+    set +x
+    return $rc
+}
+
+# Optional: Add alias for quick COSA workspace navigation
+alias cdcosa='cd ~/cosa-workspace'
+
+# ============================================
+# End of COSA Configuration
+# ============================================
+```
+
+**Step 3: Reload ~/.bashrc**
+```bash
+# Reload bashrc to apply changes
+source ~/.bashrc
+
+# Verify cosa function is available
+type cosa
+
+# Test the function
+cosa --help
+```
+
+**Step 4: Verify in New Terminal**
+```bash
+# Open a new terminal and test
+cosa --help
+
+# Should work without redefining the function
+```
+
+#### Option C: System-Wide Installation (All Users)
+
+**For system administrators who want COSA available to all users:**
+
+```bash
+# Create system-wide script
+sudo vi /etc/profile.d/cosa.sh
+
+# Add the following content:
+```
+
+```bash
+#!/bin/bash
+# /etc/profile.d/cosa.sh
+# System-wide COSA (CoreOS Assembler) configuration
+
+export COREOS_ASSEMBLER_CONTAINER="quay.io/coreos-assembler/coreos-assembler:latest"
+
+cosa() {
+    env | grep COREOS_ASSEMBLER
+    local -r COREOS_ASSEMBLER_CONTAINER_LATEST="quay.io/coreos-assembler/coreos-assembler:latest"
+    
+    if [[ -z ${COREOS_ASSEMBLER_CONTAINER} ]] && podman image exists ${COREOS_ASSEMBLER_CONTAINER_LATEST}; then
+        local -r cosa_build_date_str="$(podman inspect -f "{{.Created}}" ${COREOS_ASSEMBLER_CONTAINER_LATEST} | awk '{print $1}')"
+        local -r cosa_build_date="$(date -d ${cosa_build_date_str} +%s)"
+        
+        if [[ $(date +%s) -ge $((cosa_build_date + 60*60*24*7)) ]]; then
+            echo -e "\e[0;33m----" >&2
+            echo "The COSA container image is more than a week old and likely outdated." >&2
+            echo "You should pull the latest version with:" >&2
+            echo "podman pull ${COREOS_ASSEMBLER_CONTAINER_LATEST}" >&2
+            echo -e "----\e[0m" >&2
+            sleep 10
+        fi
+    fi
+    
+    set -x
+    podman run --rm -ti --security-opt=label=disable --privileged \
+        --userns=keep-id:uid=1000,gid=1000 \
+        -v=${PWD}:/srv/ --device=/dev/kvm --device=/dev/fuse \
+        --tmpfs=/tmp -v=/var/tmp:/var/tmp --name=cosa-$(uuidgen) \
+        ${COREOS_ASSEMBLER_CONFIG_GIT:+-v=$COREOS_ASSEMBLER_CONFIG_GIT:/srv/src/config/:ro} \
+        ${COREOS_ASSEMBLER_GIT:+-v=$COREOS_ASSEMBLER_GIT/src/:/usr/lib/coreos-assembler/:ro} \
+        ${COREOS_ASSEMBLER_ADD_CERTS:+-v=/etc/pki/ca-trust:/etc/pki/ca-trust:ro} \
+        ${COREOS_ASSEMBLER_CONTAINER_RUNTIME_ARGS} \
+        ${COREOS_ASSEMBLER_CONTAINER:-$COREOS_ASSEMBLER_CONTAINER_LATEST} "$@"
+    rc=$?
+    set +x
+    return $rc
+}
+```
+
+```bash
+# Make executable
+sudo chmod +x /etc/profile.d/cosa.sh
+
+# Reload profile
+source /etc/profile.d/cosa.sh
+
+# Test
+cosa --help
+```
+
+#### Verification Steps
+
+After setting up COSA function (any method above):
+
+```bash
+# 1. Check if function is defined
+type cosa
+# Output: cosa is a function
+
+# 2. Check environment variable
+echo $COREOS_ASSEMBLER_CONTAINER
+# Output: quay.io/coreos-assembler/coreos-assembler:latest
+
+# 3. Test COSA help
+cosa --help
+# Should show COSA help menu
+
+# 4. Test in new terminal
+# Open new terminal and run:
+cosa --help
+# Should work without errors
 ```
 
 ### Step 3: Initialize COSA
