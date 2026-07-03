@@ -38,7 +38,7 @@ pipeline {
         )
         booleanParam(
             name: 'RUN_UPGRADE_TESTS',
-            defaultValue: false,
+            defaultValue: true,
             description: 'Run upgrade tests with cosa kola run-upgrade --build=BUILD_VERSION (or latest if empty). Automatically determines upgrade path.'
         )
         booleanParam(
