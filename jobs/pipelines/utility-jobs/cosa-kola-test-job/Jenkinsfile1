@@ -112,7 +112,7 @@ pipeline {
         COSA_CONTAINER_IMAGE = "${params.COSA_CONTAINER}"
         COREOS_ASSEMBLER_CONTAINER = "${params.COSA_CONTAINER}"
         ARCHITECTURE = "ppc64le"
-        COSA_CONTAINER_NAME = "cosa${BUILD_NUMBER}"
+        COSA_CONTAINER_NAME = "cosa-jenkins-${new Date().format('yyyyMMdd-HHmm')}"
     }
     
     stages {
