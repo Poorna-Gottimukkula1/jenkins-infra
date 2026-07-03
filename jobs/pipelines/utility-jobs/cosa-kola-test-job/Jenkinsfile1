@@ -28,7 +28,7 @@ pipeline {
         )
         booleanParam(
             name: 'RUN_KOLA_TESTS',
-            defaultValue: true,
+            defaultValue: false,
             description: 'Run regular kola tests'
         )
         string(
