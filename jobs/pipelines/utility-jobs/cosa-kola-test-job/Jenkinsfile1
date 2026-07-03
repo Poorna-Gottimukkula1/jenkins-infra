@@ -65,10 +65,10 @@ pipeline {
             defaultValue: '',
             description: 'Build version for fetch mode, single kola test, upgrade tests, or build ID for build mode. Leave empty for latest/auto.'
         )
-        string(
+        choice(
             name: 'QEMU_MEMORY',
-            defaultValue: '4096',
-            description: 'Memory in MB for QEMU VM (4096 recommended for kernel-replace test)'
+            choices: ['2048', '4096', '6144', '8192', '12288'],
+            description: 'Memory in MB for QEMU VM (8192 recommended for ppc64le upgrade tests, 4096 for kernel-replace test)'
         )
         booleanParam(
             name: 'DEBUG_MODE',
@@ -760,6 +760,7 @@ EOF
                         cosa kola run-upgrade \\
                             --build=${buildVersion} \\
                             --arch=ppc64le \\
+                            --qemu-memory ${params.QEMU_MEMORY} \\
                             --upgrades \\
                             ${additionalUpgradeArgs} \\
                             2>&1 | tee kola-upgrade-output.log
