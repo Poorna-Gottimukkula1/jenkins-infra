@@ -1262,7 +1262,7 @@ Full logs: ${env.BUILD_URL}artifact/
                 if (params.RUN_UPGRADE_TESTS) testsRun.add("Upgrade")
                 if (params.RUN_EXTENDED_UPGRADE_TESTS) testsRun.add("Extended Upgrade (${params.TARGET_UPGRADE_STREAM})")
                 
-                // Get console log - check both test-results and original location
+                // Get console log - check multiple locations
                 def consoleLog = ""
                 try {
                     // First try test-results (if Collect Results stage ran)
@@ -1273,22 +1273,52 @@ Full logs: ${env.BUILD_URL}artifact/
                             returnStdout: true
                         ).trim()
                     } else {
-                        // Try original location
-                        def originalConsole = sh(
+                        // Try upgrade test location first
+                        def upgradeConsole = sh(
                             script: """
                                 cd ${WORKSPACE_DIR}
-                                find tmp/kola/ -name "console.txt" -type f 2>/dev/null | head -1
+                                find tmp/kola-upgrade/ -name "console.txt" -type f 2>/dev/null | head -1
                             """,
                             returnStdout: true
                         ).trim()
                         
-                        if (originalConsole) {
+                        if (upgradeConsole) {
                             consoleLog = sh(
-                                script: "tail -30 ${WORKSPACE_DIR}/${originalConsole} | sed 's/\\x1b\\[[0-9;]*m//g' | sed 's/\\x1b\\[?[0-9;]*[a-zA-Z]//g'",
+                                script: "tail -30 ${WORKSPACE_DIR}/${upgradeConsole} | sed 's/\\x1b\\[[0-9;]*m//g' | sed 's/\\x1b\\[?[0-9;]*[a-zA-Z]//g'",
                                 returnStdout: true
                             ).trim()
                         } else {
-                            consoleLog = "Console log not found (test may not have started VM)"
+                            // Try regular kola test location
+                            def originalConsole = sh(
+                                script: """
+                                    cd ${WORKSPACE_DIR}
+                                    find tmp/kola/ -name "console.txt" -type f 2>/dev/null | head -1
+                                """,
+                                returnStdout: true
+                            ).trim()
+                            
+                            if (originalConsole) {
+                                consoleLog = sh(
+                                    script: "tail -30 ${WORKSPACE_DIR}/${originalConsole} | sed 's/\\x1b\\[[0-9;]*m//g' | sed 's/\\x1b\\[?[0-9;]*[a-zA-Z]//g'",
+                                    returnStdout: true
+                                ).trim()
+                            } else {
+                                // Try to get kola-upgrade-output.log or kola-test-output.log
+                                def kolaLog = sh(
+                                    script: """
+                                        cd ${WORKSPACE_DIR}
+                                        if [ -f kola-upgrade-output.log ]; then
+                                            tail -30 kola-upgrade-output.log
+                                        elif [ -f kola-test-output.log ]; then
+                                            tail -30 kola-test-output.log
+                                        else
+                                            echo "Console log not found (test may not have started VM)"
+                                        fi
+                                    """,
+                                    returnStdout: true
+                                ).trim()
+                                consoleLog = kolaLog
+                            }
                         }
                     }
                 } catch (Exception e) {
@@ -1301,7 +1331,8 @@ Full logs: ${env.BUILD_URL}artifact/
 *Build*: #${BUILD_NUMBER}
 *Mode*: ${params.BUILD_MODE}
 *Tests Run*: ${testsRun.join(', ')}
-*Branch*: ${params.FEDORA_COREOS_CONFIG_BRANCH}
+*Stream*: ${params.STREAM}
+${params.FEDORA_COREOS_CONFIG_BRANCH ? "*Custom Branch*: ${params.FEDORA_COREOS_CONFIG_BRANCH}" : ""}
 *Build Version*: ${buildVersionDisplay}
 *Job*: ${env.JOB_NAME}
 *URL*: ${env.BUILD_URL}
