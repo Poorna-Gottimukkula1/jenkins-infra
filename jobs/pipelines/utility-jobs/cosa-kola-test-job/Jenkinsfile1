@@ -754,6 +754,40 @@ EOF
                         echo "Using container name: ${COSA_CONTAINER_NAME}"
                         echo "Running upgrade tests from build: ${buildVersion}"
                         
+                        # Fetch OCI archive if not present (required for upgrade tests)
+                        # Note: OCI archives are already uncompressed, no decompress needed
+                        if [ "${buildVersion}" = "latest" ]; then
+                            echo "Fetching latest OCI archive for upgrade test..."
+                            cosa buildfetch --stream=${params.STREAM} --artifact=ostree --arch=ppc64le
+                            
+                            # Get the actual build ID
+                            BUILD_ID=\$(jq -r '.builds[0].id' builds/builds.json 2>/dev/null || echo "")
+                            if [ -n "\$BUILD_ID" ]; then
+                                echo "Latest build ID: \$BUILD_ID"
+                                OCI_PATH="builds/\${BUILD_ID}/ppc64le/fedora-coreos-\${BUILD_ID}-ostree.ppc64le.ociarchive"
+                                if [ -f "\$OCI_PATH" ]; then
+                                    echo "✅ OCI archive found: \$OCI_PATH"
+                                else
+                                    echo "❌ OCI archive not found at \$OCI_PATH"
+                                    ls -lh builds/\${BUILD_ID}/ppc64le/ || true
+                                fi
+                            fi
+                        else
+                            echo "Fetching OCI archive for build ${buildVersion}..."
+                            cosa buildfetch --build=${buildVersion} --artifact=ostree --arch=ppc64le
+                            
+                            OCI_PATH="builds/${buildVersion}/ppc64le/fedora-coreos-${buildVersion}-ostree.ppc64le.ociarchive"
+                            if [ -f "\$OCI_PATH" ]; then
+                                echo "✅ OCI archive found: \$OCI_PATH"
+                            else
+                                echo "❌ OCI archive not found at \$OCI_PATH"
+                                ls -lh builds/${buildVersion}/ppc64le/ || true
+                            fi
+                        fi
+                        
+                        echo "Available OCI archives:"
+                        ls -lh builds/*/ppc64le/*ociarchive 2>/dev/null || echo "⚠️  No OCI archives found"
+                        
                         # Enable pipefail to capture exit code from cosa kola run-upgrade, not tee
                         set -o pipefail
                         
