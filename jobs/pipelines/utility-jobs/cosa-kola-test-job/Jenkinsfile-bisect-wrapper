@@ -1,0 +1,299 @@
+#!/usr/bin/env groovy
+
+// Jenkins Pipeline Wrapper for coreos-builds-bisect.py
+// Identifies which build introduced the kernel panic
+
+pipeline {
+    agent {
+        label 'ppc64le'
+    }
+    
+    parameters {
+        string(
+            name: 'GOOD_BUILD',
+            defaultValue: '45.20260703.91.0',
+            description: 'Known good build (boots successfully)'
+        )
+        string(
+            name: 'BAD_BUILD',
+            defaultValue: '45.20260703.91.2',
+            description: 'Known bad build (kernel panic)'
+        )
+        string(
+            name: 'STREAM',
+            defaultValue: 'rawhide',
+            description: 'CoreOS stream (rawhide, stable, testing, next)'
+        )
+        string(
+            name: 'ARCH',
+            defaultValue: 'ppc64le',
+            description: 'Architecture'
+        )
+        string(
+            name: 'QEMU_MEMORY',
+            defaultValue: '4096',
+            description: 'QEMU memory in MB'
+        )
+        string(
+            name: 'TEST_RETRIES',
+            defaultValue: '3',
+            description: 'Retries per build (for intermittent failures)'
+        )
+        booleanParam(
+            name: 'RESUME',
+            defaultValue: false,
+            description: 'Resume previous bisect'
+        )
+    }
+    
+    environment {
+        COSA_WORKSPACE = "${WORKSPACE}/cosa-workspace"
+        BISECT_SCRIPT = "${WORKSPACE}/coreos-builds-bisect.py"
+        TEST_SCRIPT = "${WORKSPACE}/test-upgrade-panic.sh"
+        BISECT_DATA = "${COSA_WORKSPACE}/coreos-builds-bisect-data.json"
+    }
+    
+    stages {
+        stage('Setup') {
+            steps {
+                script {
+                    echo "=" * 80
+                    echo "BISECT PIPELINE - Kernel Panic Investigation"
+                    echo "=" * 80
+                    echo "Good Build: ${params.GOOD_BUILD}"
+                    echo "Bad Build:  ${params.BAD_BUILD}"
+                    echo "Stream:     ${params.STREAM}"
+                    echo "Arch:       ${params.ARCH}"
+                    echo "Resume:     ${params.RESUME}"
+                    echo "=" * 80
+                    
+                    sh """
+                        mkdir -p ${COSA_WORKSPACE}
+                        cd ${COSA_WORKSPACE}
+                        cosa init https://github.com/coreos/fedora-coreos-config || true
+                    """
+                }
+            }
+        }
+        
+        stage('Fetch Bisect Script') {
+            steps {
+                script {
+                    sh """
+                        # Copy bisect script from fedora-coreos-config
+                        cp fedora-coreos-config/tests/manual/coreos-builds-bisect.py ${BISECT_SCRIPT}
+                        chmod +x ${BISECT_SCRIPT}
+                    """
+                }
+            }
+        }
+        
+        stage('Create Test Script') {
+            steps {
+                script {
+                    // Create test script that checks for kernel panic
+                    def testScript = '''#!/bin/bash
+set -euo pipefail
+
+BUILD_ID=$1
+RETRIES=''' + params.TEST_RETRIES + '''
+QEMU_MEMORY=''' + params.QEMU_MEMORY + '''
+
+echo "========================================="
+echo "Testing build: $BUILD_ID"
+echo "Retries: $RETRIES"
+echo "========================================="
+
+pass_count=0
+fail_count=0
+
+for attempt in $(seq 1 $RETRIES); do
+    echo "Attempt $attempt/$RETRIES..."
+    
+    # Fetch the specific build (stream already fetched in setup)
+    cosa buildfetch --build=$BUILD_ID --artifact=qemu --force
+    
+    # Decompress the image
+    cosa decompress --build=$BUILD_ID
+    
+    # Run upgrade test with timeout
+    if timeout 15m cosa kola run-upgrade \\
+        --build=$BUILD_ID \\
+        --qemu-memory $QEMU_MEMORY \\
+        --upgrades \\
+        --debug \\
+        2>&1 | tee test-$BUILD_ID-attempt-$attempt.log; then
+        
+        # Check if kernel panic occurred despite success
+        if grep -q "Kernel panic" test-$BUILD_ID-attempt-$attempt.log; then
+            echo "❌ Kernel panic detected in logs"
+            ((fail_count++))
+        else
+            echo "✅ Test passed"
+            ((pass_count++))
+        fi
+    else
+        # Test failed
+        if grep -q "Kernel panic" test-$BUILD_ID-attempt-$attempt.log; then
+            echo "❌ Test failed with kernel panic"
+            ((fail_count++))
+        else
+            echo "⚠️  Test failed (not kernel panic)"
+            # Return 99 for inconclusive if failure is not kernel panic
+            exit 99
+        fi
+    fi
+    
+    # Early exit if we have clear result
+    if [ $pass_count -gt $((RETRIES / 2)) ]; then
+        echo "Majority passed ($pass_count/$RETRIES)"
+        exit 0
+    fi
+    if [ $fail_count -gt $((RETRIES / 2)) ]; then
+        echo "Majority failed ($fail_count/$RETRIES)"
+        exit 1
+    fi
+done
+
+# Final decision
+if [ $pass_count -gt $fail_count ]; then
+    echo "Final: PASS ($pass_count pass, $fail_count fail)"
+    exit 0
+else
+    echo "Final: FAIL ($pass_count pass, $fail_count fail)"
+    exit 1
+fi
+'''
+                    
+                    writeFile file: TEST_SCRIPT, text: testScript
+                    sh "chmod +x ${TEST_SCRIPT}"
+                }
+            }
+        }
+        
+        stage('Fetch Builds List') {
+            when {
+                expression { !params.RESUME }
+            }
+            steps {
+                script {
+                    sh """
+                        cd ${COSA_WORKSPACE}
+                        # First fetch the stream to populate builds.json
+                        cosa buildfetch --stream=${params.STREAM} --force
+                    """
+                }
+            }
+        }
+        
+        stage('Run Bisect') {
+            steps {
+                script {
+                    def resumeFlag = params.RESUME ? '--resume' : ''
+                    def goodBadFlags = params.RESUME ? '' : "--good ${params.GOOD_BUILD} --bad ${params.BAD_BUILD}"
+                    
+                    sh """
+                        cd ${COSA_WORKSPACE}
+                        
+                        ${BISECT_SCRIPT} \\
+                            ${resumeFlag} \\
+                            ${goodBadFlags} \\
+                            --arch ${params.ARCH} \\
+                            --testscript ${TEST_SCRIPT} \\
+                            --datafile ${BISECT_DATA} \\
+                            2>&1 | tee bisect-output.log
+                    """
+                }
+            }
+        }
+        
+        stage('Generate Report') {
+            steps {
+                script {
+                    // Extract results from bisect output
+                    def bisectLog = readFile("${COSA_WORKSPACE}/bisect-output.log")
+                    def lastGood = (bisectLog =~ /Last known good build: ([^\s]+)/)[0][1]
+                    def firstBad = (bisectLog =~ /First known bad build: ([^\s]+)/)[0][1]
+                    
+                    def report = """
+# Bisect Report: Kernel Panic Investigation
+
+## Test Configuration
+- **Stream**: ${params.STREAM}
+- **Architecture**: ${params.ARCH}
+- **Memory**: ${params.QEMU_MEMORY} MB
+- **Test Retries**: ${params.TEST_RETRIES}
+
+## Results
+- **Last Good Build**: ${lastGood}
+- **First Bad Build**: ${firstBad}
+
+## Conclusion
+The kernel panic was introduced between builds:
+- **${lastGood}** (last working)
+- **${firstBad}** (first failing)
+
+## Next Steps
+1. Compare these two builds:
+   ```bash
+   # Fetch stream first
+   cosa buildfetch --stream=${params.STREAM} --force
+   
+   # Fetch both builds
+   cosa buildfetch --build=${lastGood} --artifact=qemu
+   cosa buildfetch --build=${firstBad} --artifact=qemu
+   
+   # Compare package versions
+   rpm-ostree db diff ${lastGood} ${firstBad}
+   ```
+
+2. Check for kernel changes:
+   ```bash
+   # Extract kernel versions
+   rpm-ostree db list ${lastGood} | grep kernel
+   rpm-ostree db list ${firstBad} | grep kernel
+   ```
+
+3. Review build metadata:
+   - https://builds.coreos.fedoraproject.org/prod/streams/${params.STREAM}/builds/${lastGood}/
+   - https://builds.coreos.fedoraproject.org/prod/streams/${params.STREAM}/builds/${firstBad}/
+
+4. Report to upstream with this information
+
+## Test Details
+- Test script: ${TEST_SCRIPT}
+- Bisect data: ${BISECT_DATA}
+- Full log: bisect-output.log
+
+---
+Generated: ${new Date()}
+Pipeline: ${env.BUILD_URL}
+"""
+                    
+                    writeFile file: "${COSA_WORKSPACE}/BISECT-REPORT.md", text: report
+                    
+                    echo report
+                    
+                    // Save for later use
+                    env.LAST_GOOD_BUILD = lastGood
+                    env.FIRST_BAD_BUILD = firstBad
+                }
+            }
+        }
+    }
+    
+    post {
+        always {
+            archiveArtifacts artifacts: 'cosa-workspace/bisect-output.log,cosa-workspace/BISECT-REPORT.md,cosa-workspace/coreos-builds-bisect-data.json,cosa-workspace/test-*.log', allowEmptyArchive: true
+        }
+        success {
+            echo "✅ Bisect completed successfully"
+            echo "Last good build: ${env.LAST_GOOD_BUILD}"
+            echo "First bad build: ${env.FIRST_BAD_BUILD}"
+        }
+        failure {
+            echo "❌ Bisect failed or was interrupted"
+            echo "You can resume with RESUME=true parameter"
+        }
+    }
+}
