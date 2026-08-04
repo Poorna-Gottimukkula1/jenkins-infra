@@ -50,7 +50,7 @@ def call() {
                 env.INSTANCE_NAME = "rdr-cicd-odf"
                 env.SETUP_SQUID_PROXY = "false"
                 env.STORAGE_TYPE = "notnfs"
-                env.SYSTEM_TYPE = "e980"
+                env.SYSTEM_TYPE = "s1022"
                 env.RERUN_TIER_TEST = "2"
                 env.PRE_KERNEL_OPTIONS='\\"rd.multipath=0\\", \\"loglevel=7\\"'
             }
@@ -58,7 +58,7 @@ def call() {
                 env.INSTANCE_NAME = "rdr-cicd-${env.OCP_RELEASE.replaceAll('\\.', '')}"
                 env.SETUP_SQUID_PROXY = "true"
                 env.STORAGE_TYPE = "nfs"
-                env.SYSTEM_TYPE = "e980"
+                env.SYSTEM_TYPE = "s1022"
                 //E2e Variables
                 env.E2E_GIT = "https://github.com/openshift/origin"
                 env.E2E_BRANCH="release-${env.OCP_RELEASE}"
