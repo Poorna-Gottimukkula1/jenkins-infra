@@ -50,7 +50,7 @@ def call() {
                 env.INSTANCE_NAME = "rdr-cicd-odf"
                 env.SETUP_SQUID_PROXY = "false"
                 env.STORAGE_TYPE = "notnfs"
-                env.SYSTEM_TYPE = "e980"
+                env.SYSTEM_TYPE = "s1022"
                 env.RERUN_TIER_TEST = "2"
                 env.PRE_KERNEL_OPTIONS='\\"rd.multipath=0\\", \\"loglevel=7\\"'
             }

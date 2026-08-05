@@ -29,7 +29,7 @@ pipeline {
         //PowerVS specific variables
         POWERVS_REGION = "osa"
         POWERVS_ZONE = "osa21"
-        SYS_TYPE = "e980"
+        SYS_TYPE = "s1022"
         SERVICE_INSTANCE_GUID = "c495676b-2162-4a3f-a7a2-e7fb466c6899"
         VPCREGION= "jp-osa"
         RESOURCE_GROUP="ibm-internal-cicd-resource-group"

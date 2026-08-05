@@ -29,7 +29,7 @@ pipeline {
         //PowerVS specific variables
         POWERVS_REGION = "sao"
         POWERVS_ZONE = "sao01"
-        SYS_TYPE = "e980"
+        SYS_TYPE = "s1022"
         SERVICE_INSTANCE_GUID = "e6a6306b-8348-48dd-99ad-56a7bafc9265"
         VPCREGION= "br-sao"
         RESOURCE_GROUP="ibm-internal-cicd-resource-group"
