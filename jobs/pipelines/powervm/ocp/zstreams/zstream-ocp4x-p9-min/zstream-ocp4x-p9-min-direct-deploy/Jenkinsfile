@@ -13,6 +13,7 @@ pipeline {
         string(defaultValue: '', description: 'Build(quay image or build number)', name: 'Build')
         string(defaultValue: '', description: 'Build Release', name: 'Release')
         string(defaultValue: '720', description: 'Enter time(in Minutes) to retain the cluster', name: 'KeepFor')
+        string(defaultValue: '', description: 'Jira issue key to update, for example OCPBUGS-12345', name: 'JIRA_ISSUE_KEY')
     }
 
     environment {
@@ -72,35 +73,35 @@ pipeline {
                     env.SETUP_SQUID_PROXY = "true"
 
                     if (env.OCP_RELEASE == "4.12") {
-                        env.REDHAT_RELEASE = "9.8"
+                        env.REDHAT_RELEASE = "9.7"
                         env.GOLANG_TARBALL = "https://golang.org/dl/go1.18.6.linux-ppc64le.tar.gz"
                     }
                     else if (env.OCP_RELEASE == "4.13"){
-                        env.REDHAT_RELEASE = "9.8"
+                        env.REDHAT_RELEASE = "9.7"
                         env.GOLANG_TARBALL = "https://golang.org/dl/go1.19.linux-ppc64le.tar.gz"
                     }
                     else if (env.OCP_RELEASE == "4.14") {
-                        env.REDHAT_RELEASE = "9.8"
+                        env.REDHAT_RELEASE = "9.7"
                         env.GOLANG_TARBALL = "https://golang.org/dl/go1.20.linux-ppc64le.tar.gz"
                     }
                     else if (env.OCP_RELEASE == "4.15") {
-                        env.REDHAT_RELEASE = "9.8"
+                        env.REDHAT_RELEASE = "9.7"
                         env.GOLANG_TARBALL = "https://golang.org/dl/go1.22.0.linux-ppc64le.tar.gz"
                     }
                     else if (env.OCP_RELEASE == "4.16"){
-                        env.REDHAT_RELEASE = "9.8"
+                        env.REDHAT_RELEASE = "9.7"
                         env.GOLANG_TARBALL = "https://golang.org/dl/go1.22.0.linux-ppc64le.tar.gz"
                     }
                     else if (env.OCP_RELEASE == "4.17") {
-                        env.REDHAT_RELEASE = "9.8"
+                        env.REDHAT_RELEASE = "9.7"
                         env.GOLANG_TARBALL = "https://golang.org/dl/go1.22.4.linux-ppc64le.tar.gz"
                     } 
                     else if (env.OCP_RELEASE == "4.18"){
-                        env.REDHAT_RELEASE = "9.8"
+                        env.REDHAT_RELEASE = "9.7"
                         env.GOLANG_TARBALL = "https://golang.org/dl/go1.22.4.linux-ppc64le.tar.gz"
                     }
                     else {
-                        env.REDHAT_RELEASE = "9.8"
+                        env.REDHAT_RELEASE = "9.7"
                         env.GOLANG_TARBALL = "https://golang.org/dl/go1.23.4.linux-ppc64le.tar.gz"
                     }
                     // Added a condition for RHCOS_RELEASE to be set to 4.19 for OCP 4.20/4.21
@@ -213,15 +214,229 @@ pipeline {
             }
         }
         stage('Run crontab script for capturing outputs of multiple commands') {
-            steps {
-                crontabCommandCaptureScript()
-            }
-        }
+           steps {
+               crontabCommandCaptureScript()
+           }
+       }
         stage('Setup Kubectl') {
             steps {
                 setupKubeconfigOcp4()
             }
         }
+        stage('Ensure Jira Issue') {
+            steps {
+                script {
+                    def buildMinorVersion = env.BUILD.tokenize(':').last().tokenize('.').take(3).join('.')
+                    def jiraWorkflowType = 'direct-deploy'
+                    ensureZstreamJiraIssue(
+                        labels: ['z-stream', 'p9', jiraWorkflowType, "ocp-${env.OCP_RELEASE}", "${env.OCP_RELEASE}-${buildMinorVersion}"],
+                        summary: "z-stream | ${jiraWorkflowType} | p9 | ${env.OCP_RELEASE} | minor ${buildMinorVersion} | ${env.BUILD}",
+                        description: """h2. Jenkins CI issue\n* Job Type: z-stream\n* Workflow Type: ${jiraWorkflowType}\n* Job: ${env.JOB_NAME} #${env.BUILD_NUMBER}\n* Release: ${env.OCP_RELEASE}\n* Minor Version: ${buildMinorVersion}\n* Build: ${env.BUILD}\n* Platform: p9\n* Build URL: ${env.BUILD_URL}\n* Result: ${currentBuild.result ?: 'SUCCESS'}""",
+                        jql: "project = OPENSHIFTP AND labels = '${jiraWorkflowType}' AND labels = 'ocp-${env.OCP_RELEASE}' AND labels = '${env.OCP_RELEASE}-${buildMinorVersion}' AND statusCategory != Done ORDER BY created DESC"
+                    )
+                }
+            }
+        }
+stage('Capture OCP Console Screenshots') {
+    options {
+        timeout(time: 15, unit: 'MINUTES')
+    }
+    steps {
+        script {
+            echo "=== captureOcpConsoleScreenshots STARTED ==="
+            echo "BASTION_IP=${env.BASTION_IP}"
+
+            if (!env.BASTION_IP?.trim()) {
+                echo "ERROR: BASTION_IP is not set — skipping screenshots"
+                currentBuild.result = 'UNSTABLE'
+                return
+            }
+
+            try {
+                sh '''
+                    set -e
+                    cd ${WORKSPACE}/deploy
+
+                    echo "=========================================="
+                    echo "Fetching console URL and password from bastion"
+                    echo "=========================================="
+
+                    CONSOLE_URL=$(ssh -o StrictHostKeyChecking=no -i id_rsa \
+                        root@${BASTION_IP} \
+                        "oc whoami --show-console 2>/dev/null")
+
+                    KUBEADMIN_PASSWORD=$(ssh -o StrictHostKeyChecking=no -i id_rsa \
+                        root@${BASTION_IP} \
+                        "cat /root/openstack-upi/auth/kubeadmin-password")
+
+                    echo "Console URL: ${CONSOLE_URL}"
+                    echo "${CONSOLE_URL}"        > /tmp/ocp_console_url.txt
+                    echo "${KUBEADMIN_PASSWORD}" > /tmp/ocp_kubeadmin_password.txt
+
+                    echo "=========================================="
+                    echo "Checking network connectivity to console"
+                    echo "=========================================="
+                    HTTP_CODE=$(curl -sk --max-time 15 "${CONSOLE_URL}" \
+                        -o /dev/null -w "%{http_code}" || echo "000")
+                    echo "HTTP response code: ${HTTP_CODE}"
+                    if [ "${HTTP_CODE}" = "000" ]; then
+                        echo "ERROR: Cannot reach console URL"
+                        exit 1
+                    fi
+                    echo "Console is reachable"
+
+                    echo "=========================================="
+                    echo "Installing Firefox"
+                    echo "=========================================="
+                    FIREFOX_BIN=$(which firefox 2>/dev/null || true)
+                    if [ -z "${FIREFOX_BIN}" ] || [ ! -x "${FIREFOX_BIN}" ]; then
+                        echo "Downloading Firefox from Mozilla..."
+                        FIREFOX_URL="https://releases.mozilla.org/pub/firefox/releases/128.0esr/linux-x86_64/en-US/firefox-128.0esr.tar.bz2"
+                        curl -L --retry 3 --retry-delay 5 \
+                            "${FIREFOX_URL}" -o /tmp/firefox.tar.bz2
+                        tar -xjf /tmp/firefox.tar.bz2 -C /opt/
+                        ln -sf /opt/firefox/firefox /usr/local/bin/firefox
+                        rm -f /tmp/firefox.tar.bz2
+                        echo "Firefox installed: $(/usr/local/bin/firefox --version)"
+                    else
+                        echo "Firefox found: $(${FIREFOX_BIN} --version)"
+                    fi
+
+                    echo "=========================================="
+                    echo "Installing geckodriver"
+                    echo "=========================================="
+                    GECKO_BIN=$(which geckodriver 2>/dev/null || true)
+                    if [ -z "${GECKO_BIN}" ] || [ ! -x "${GECKO_BIN}" ]; then
+                        echo "Downloading geckodriver..."
+                        GECKO_VER=$(curl -s \
+                            "https://api.github.com/repos/mozilla/geckodriver/releases/latest" \
+                            | python3 -c \
+                            "import sys,json; print(json.load(sys.stdin)['tag_name'])")
+                        echo "Latest geckodriver: ${GECKO_VER}"
+                        curl -sL \
+                            "https://github.com/mozilla/geckodriver/releases/download/${GECKO_VER}/geckodriver-${GECKO_VER}-linux64.tar.gz" \
+                            | tar -xz -C /usr/local/bin/
+                        chmod +x /usr/local/bin/geckodriver
+                        echo "Geckodriver installed: $(geckodriver --version | head -1)"
+                    else
+                        echo "Geckodriver found: $(${GECKO_BIN} --version | head -1)"
+                    fi
+
+                    echo "=========================================="
+                    echo "Installing selenium"
+                    echo "=========================================="
+                    VENV_PYTHON="/tmp/screenshot-venv/bin/python3"
+
+                    if [ ! -f "${VENV_PYTHON}" ]; then
+                        echo "Trying to create venv..."
+
+                        # Try installing venv package
+                        apt-get install -y python3-venv 2>/dev/null || \
+                        apt-get install -y python3.11-venv 2>/dev/null || \
+                        apt-get install -y python3.12-venv 2>/dev/null || true
+
+                        if python3 -m venv /tmp/screenshot-venv 2>/dev/null; then
+                            echo "Venv created — installing selenium..."
+                            /tmp/screenshot-venv/bin/pip install \
+                                --upgrade pip --quiet
+                            /tmp/screenshot-venv/bin/pip install \
+                                selenium --quiet
+                            echo "Selenium: $(${VENV_PYTHON} -c \
+                                'import selenium; print(selenium.__version__)')"
+                        else
+                            echo "Venv not available — using --break-system-packages"
+                            pip3 install selenium \
+                                --break-system-packages --quiet 2>/dev/null || \
+                            pip install selenium \
+                                --break-system-packages --quiet 2>/dev/null || \
+                            python3 -m pip install selenium \
+                                --break-system-packages --quiet
+                            VENV_PYTHON=$(which python3)
+                            echo "Selenium: $(python3 -c \
+                                'import selenium; print(selenium.__version__)')"
+                        fi
+                    else
+                        echo "Venv exists — checking selenium..."
+                        ${VENV_PYTHON} -c \
+                            "import selenium; print('selenium', selenium.__version__)" \
+                            2>/dev/null || \
+                            /tmp/screenshot-venv/bin/pip install selenium --quiet
+                    fi
+
+                    # Save python command for next step
+                    echo "${VENV_PYTHON}" > /tmp/screenshot_python_cmd.txt
+                    echo "Python cmd: $(cat /tmp/screenshot_python_cmd.txt)"
+
+                    echo "=========================================="
+                    echo "Final dependency check"
+                    echo "=========================================="
+                    python3 --version
+                    /usr/local/bin/firefox --version
+                    /usr/local/bin/geckodriver --version | head -1
+                    PYTHON_CMD=$(cat /tmp/screenshot_python_cmd.txt)
+                    ${PYTHON_CMD} -c \
+                        "import selenium; print('selenium', selenium.__version__)"
+                    echo "All dependencies OK"
+                '''
+
+                sh '''
+                    set -e
+
+                    CONSOLE_URL=$(cat /tmp/ocp_console_url.txt)
+                    KUBEADMIN_PASSWORD=$(cat /tmp/ocp_kubeadmin_password.txt)
+                    PYTHON_CMD=$(cat /tmp/screenshot_python_cmd.txt)
+
+                    echo "=========================================="
+                    echo "Running screenshot collector"
+                    echo "Console: ${CONSOLE_URL}"
+                    echo "Python: ${PYTHON_CMD}"
+                    echo "=========================================="
+
+                    mkdir -p ${WORKSPACE}/deploy/ui-screenshots
+
+                    CONSOLE_URL="${CONSOLE_URL}" \
+                    KUBEADMIN_PASSWORD="${KUBEADMIN_PASSWORD}" \
+                    OUTPUT_DIR="${WORKSPACE}/deploy/ui-screenshots" \
+                    ${PYTHON_CMD} \
+                        ${WORKSPACE}/scripts/ocp-console-screenshot.py 2>&1
+
+                    echo "=========================================="
+                    echo "Verifying output"
+                    echo "=========================================="
+                    ls -lah ${WORKSPACE}/deploy/ui-screenshots.tar.gz
+                    tar -tzf ${WORKSPACE}/deploy/ui-screenshots.tar.gz | head -20
+                    echo "Screenshot stage completed successfully"
+                '''
+
+                archiveAllArtifacts("deploy/ui-screenshots.tar.gz")
+                archiveAllArtifacts("deploy/ui-screenshots/**/*.png")
+
+            } catch(err) {
+    echo "Screenshot capture failed — marking UNSTABLE: ${err.toString()}"
+
+    sh '''
+        set +e
+        cd ${WORKSPACE}/deploy
+
+        # Copy debug screenshots from Jenkins agent (local /tmp)
+        cp /tmp/login_failure.png \
+            ${WORKSPACE}/deploy/login_failure.png 2>/dev/null || true
+        cp /tmp/before_login_submit.png \
+            ${WORKSPACE}/deploy/before_login_submit.png 2>/dev/null || true
+
+        # Also try to pull ui-screenshots tar if partially created
+        ls -la ${WORKSPACE}/deploy/ui-screenshots.tar.gz 2>/dev/null || true
+
+        exit 0
+    '''
+
+    archiveAllArtifacts("deploy/login_failure.png")
+    archiveAllArtifacts("deploy/before_login_submit.png")
+    currentBuild.result = 'UNSTABLE'
+}
+        }
+    }
+}
         stage('Setup and run ansible extra') {
             steps {
                archiveAllArtifacts("deploy/id_rsa")
@@ -232,6 +447,23 @@ pipeline {
         stage('Gather pprof and prometheus data') {
             steps {
                 gatherPrometheusData()
+            }
+        }
+                stage('Run script for capturing outputs of multiple commands') {
+            steps {
+                script {
+                    try {
+                        sh '''
+                            chmod +x ${WORKSPACE}/scripts/cluster-health-checkup.sh
+                            ${WORKSPACE}/scripts/cluster-health-checkup.sh 2>&1 | tee ${WORKSPACE}/deploy/cluster-health.log
+                        '''
+                    } catch (err) {
+                        echo 'Running Quay log collection failed!'
+                        failedStages.add(env.STAGE_NAME)
+                        throw err
+                    }
+                }
+                archiveAllArtifacts("deploy/cluster-health.log")
             }
         }
         stage('Waiting to timeout') {
@@ -267,9 +499,16 @@ pipeline {
                     storeMustGatherLogs()
                     checkInfraError()
                     processE2eResults()
+                    def jiraSummary = fileExists("deploy/summary.txt") ? readFile("deploy/summary.txt").trim() : "summary.txt not found"
+                    def jiraClusterHealth = fileExists("deploy/cluster-health.log") ? readFile("deploy/cluster-health.log").trim() : "cluster-health.log not found"
+                    updateZstreamJiraIssue(
+                        comment: """h2. Jenkins CI update\n* Job: ${env.JOB_NAME} #${env.BUILD_NUMBER}\n* Result: ${currentBuild.result ?: 'SUCCESS'}\n* Build: ${env.OPENSHIFT_IMAGE ?: 'N/A'}\n\nh3. E2E Summary\n{noformat}\n${jiraSummary}\n{noformat}\n\nh3. Cluster Health Summary\n{noformat}\n${jiraClusterHealth}\n{noformat}""",
+                        clusterHealthPath: 'deploy/cluster-health.log',
+                        screenshotGlob: 'deploy/ui-screenshots'
+                    )
                 }
                 catch (err){
-                    echo 'Error ! Always block failed!' 
+                    echo "Error ! Always block failed! ${err}"
                 }
                 finally{
                     cleanupOcp4Cluster()

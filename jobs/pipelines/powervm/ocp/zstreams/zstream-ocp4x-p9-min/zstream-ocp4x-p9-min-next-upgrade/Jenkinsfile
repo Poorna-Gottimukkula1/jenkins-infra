@@ -16,6 +16,7 @@ pipeline {
         string(defaultValue: '', description: 'Upgrade Build Release', name: 'UpgradeRelease')
         booleanParam(defaultValue: false, name: 'Rune2e', description: 'Select if you want to run e2e tests. E2e runs after cluster upgrade')
         string(defaultValue: '720', description: 'Enter time(in Minutes) to retain the cluster', name: 'KeepFor')
+        string(defaultValue: '', description: 'Jira issue key to update, for example OCPBUGS-12345', name: 'JIRA_ISSUE_KEY')
     }
     environment {
         //users and credentials. All must be defined in Jenkins Credentials
@@ -80,35 +81,35 @@ pipeline {
                     env.E2E_BRANCH = "release-${env.UPGRADE_RELEASE}"
 
                     if (env.OCP_RELEASE == "4.12") {
-                        env.REDHAT_RELEASE = "9.8"
+                        env.REDHAT_RELEASE = "9.7"
                         env.GOLANG_TARBALL = "https://golang.org/dl/go1.18.6.linux-ppc64le.tar.gz"
                     }
                     else if (env.OCP_RELEASE == "4.13"){
-                        env.REDHAT_RELEASE = "9.8"
+                        env.REDHAT_RELEASE = "9.7"
                         env.GOLANG_TARBALL = "https://golang.org/dl/go1.19.linux-ppc64le.tar.gz"
                     }
                     else if (env.OCP_RELEASE == "4.14") {
-                        env.REDHAT_RELEASE = "9.8"
+                        env.REDHAT_RELEASE = "9.7"
                         env.GOLANG_TARBALL = "https://golang.org/dl/go1.20.linux-ppc64le.tar.gz"
                     }
                     else if (env.OCP_RELEASE == "4.15") {
-                        env.REDHAT_RELEASE = "9.8"
+                        env.REDHAT_RELEASE = "9.7"
                         env.GOLANG_TARBALL = "https://golang.org/dl/go1.22.0.linux-ppc64le.tar.gz"
                     }
                     else if (env.OCP_RELEASE == "4.16"){
-                        env.REDHAT_RELEASE = "9.8"
+                        env.REDHAT_RELEASE = "9.7"
                         env.GOLANG_TARBALL = "https://golang.org/dl/go1.22.0.linux-ppc64le.tar.gz"
                     }
                     else if (env.OCP_RELEASE == "4.17") {
-                        env.REDHAT_RELEASE = "9.8"
+                        env.REDHAT_RELEASE = "9.7"
                         env.GOLANG_TARBALL = "https://golang.org/dl/go1.22.4.linux-ppc64le.tar.gz"
                     } 
                     else if (env.OCP_RELEASE == "4.18"){
-                        env.REDHAT_RELEASE = "9.8"
+                        env.REDHAT_RELEASE = "9.7"
                         env.GOLANG_TARBALL = "https://golang.org/dl/go1.22.4.linux-ppc64le.tar.gz"
                     }
                     else {
-                        env.REDHAT_RELEASE = "9.8"
+                        env.REDHAT_RELEASE = "9.7"
                         env.GOLANG_TARBALL = "https://golang.org/dl/go1.23.4.linux-ppc64le.tar.gz"
                     }
                     // Added a condition for RHCOS_RELEASE to be set to 4.19 for OCP 4.20/4.21
@@ -258,6 +259,28 @@ pipeline {
                 validateCoStatus()
             }
         }
+        stage('Ensure Jira Issue') {
+            steps {
+                script {
+                    def sourceMinorVersion = env.CURRENT_BUILD.tokenize(':').last().tokenize('.').take(3).join('.')
+                    def targetMinorVersion = env.UPGRADE_BUILD.tokenize(':').last().tokenize('.').take(3).join('.')
+                    def jiraWorkflowType = 'next-upgrade'
+                    ensureZstreamJiraIssue(
+                        labels: ['z-stream', 'p9', jiraWorkflowType, "ocp-${env.OCP_RELEASE}", "ocp-${env.UPGRADE_RELEASE}", "${env.OCP_RELEASE}-${sourceMinorVersion}", "${env.UPGRADE_RELEASE}-${targetMinorVersion}"],
+                        summary: "z-stream | ${jiraWorkflowType} | p9 | ${env.OCP_RELEASE} -> ${env.UPGRADE_RELEASE} | minor ${sourceMinorVersion} -> ${targetMinorVersion} | ${env.CURRENT_BUILD} -> ${env.UPGRADE_BUILD}",
+                        description: """h2. Jenkins CI issue\n* Job Type: z-stream\n* Workflow Type: ${jiraWorkflowType}\n* Job: ${env.JOB_NAME} #${env.BUILD_NUMBER}\n* Current Release: ${env.OCP_RELEASE}\n* Upgrade Release: ${env.UPGRADE_RELEASE}\n* Current Minor Version: ${sourceMinorVersion}\n* Upgrade Minor Version: ${targetMinorVersion}\n* Current Build: ${env.CURRENT_BUILD}\n* Upgrade Build: ${env.UPGRADE_BUILD}\n* Platform: p9\n* Build URL: ${env.BUILD_URL}\n* Result: ${currentBuild.result ?: 'SUCCESS'}""",
+                        jql: "project = OPENSHIFTP AND labels = '${jiraWorkflowType}' AND labels = 'ocp-${env.OCP_RELEASE}' AND labels = 'ocp-${env.UPGRADE_RELEASE}' AND labels = '${env.OCP_RELEASE}-${sourceMinorVersion}' AND labels = '${env.UPGRADE_RELEASE}-${targetMinorVersion}' AND statusCategory != Done ORDER BY created DESC"
+                    )
+                }
+            }
+        }
+        stage('Capture OCP Console Screenshots') {
+            steps {
+                captureOcpConsoleScreenshots()
+                archiveAllArtifacts("deploy/ui-screenshots.tar.gz")
+                archiveAllArtifacts("deploy/ui-screenshots/**/*.png")
+            }
+        }
         stage('Setup and run ansible extra') {
             when { expression { return env.ENABLE_E2E_TEST == "true"; } }
             steps {
@@ -302,9 +325,16 @@ pipeline {
                         "cpu-pre.pprof", "heap-pre.pprof", "prometheus.tar.gz", "deploy/cron.log")
                     storeMustGatherLogs()
                     checkInfraError()
+                    def jiraSummary = fileExists("deploy/summary.txt") ? readFile("deploy/summary.txt").trim() : "summary.txt not found"
+                    def jiraClusterHealth = fileExists("deploy/cluster-health.log") ? readFile("deploy/cluster-health.log").trim() : "cluster-health.log not found"
+                    updateZstreamJiraIssue(
+                        comment: """h2. Jenkins CI update\n* Job: ${env.JOB_NAME} #${env.BUILD_NUMBER}\n* Result: ${currentBuild.result ?: 'SUCCESS'}\n* Upgrade: ${env.OPENSHIFT_IMAGE ?: 'N/A'} to ${env.UPGRADE_IMAGE ?: 'N/A'}\n\nh3. E2E Summary\n{noformat}\n${jiraSummary}\n{noformat}\n\nh3. Cluster Health Summary\n{noformat}\n${jiraClusterHealth}\n{noformat}""",
+                        clusterHealthPath: 'deploy/cluster-health.log',
+                        screenshotGlob: 'deploy/ui-screenshots'
+                    )
                 }
                 catch (err){
-                    echo 'Error ! Always block failed!'
+                    echo "Error ! Always block failed! ${err}"
                 }
                 finally{
                     cleanupOcp4Cluster()
